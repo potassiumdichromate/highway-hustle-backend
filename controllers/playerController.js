@@ -423,9 +423,9 @@ exports.checkUserAchievement = async (req, res) => {
     const { user } = req.query;
     
     if (!user) {
-      return res.status(400).json({
+      return res.status(200).json({
         message: "failed, missing user parameter",
-        code: 400,
+        code: 200,
         data: {
           Achieved1000M: false
         }
@@ -435,9 +435,9 @@ exports.checkUserAchievement = async (req, res) => {
     const player = await findUserByIdentifier(user);
     
     if (!player) {
-      return res.status(404).json({
+      return res.status(200).json({
         message: "failed, user doesn't qualified",
-        code: 404,
+        code: 200,
         data: {
           Achieved1000M: false
         }
@@ -455,9 +455,9 @@ exports.checkUserAchievement = async (req, res) => {
         }
       });
     } else {
-      return res.status(404).json({
+      return res.status(200).json({
         message: "failed, user doesn't qualified",
-        code: 404,
+        code: 200,
         data: {
           Achieved1000M: false
         }
@@ -465,9 +465,9 @@ exports.checkUserAchievement = async (req, res) => {
     }
   } catch (err) {
     console.error("❌ Error checking user achievement:", err);
-    res.status(500).json({
+    res.status(200).json({
       message: "failed, server error",
-      code: 500,
+      code: 200,
       data: {
         Achieved1000M: false
       }
