@@ -14,7 +14,7 @@ const {
   updateUserGameData,
   updatePlayerGameModeData,
   updatePlayerVehicleData,
-  
+
   // Campaign & Utilities
   checkUserAchievement,
   getLeaderboard,
@@ -40,6 +40,7 @@ router.post("/player/privy", updatePrivyData);
 router.post("/player/game", updateUserGameData);
 router.post("/player/gamemode", updatePlayerGameModeData);
 router.post("/player/vehicle", updatePlayerVehicleData);
+router.post("/player/login", recordPrivyLogin);
 
 // ========== CAMPAIGN & GALXE INTEGRATION ==========
 router.get("/check-user-achievement", checkUserAchievement);

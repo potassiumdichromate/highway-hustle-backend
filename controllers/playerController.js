@@ -19,7 +19,10 @@ const findUserByIdentifier = async (identifier) => {
 // ========== HELPER: Create Default Player ==========
 const createDefaultPlayer = async (identifier) => {
   const newPlayer = {
-    privyData: {},
+    privyData: {
+      type: 'unknown',
+      recordedAt: new Date()
+    },
     userGameData: {
       playerName: "Unnamed",
       currency: 20000,
@@ -61,6 +64,104 @@ const createDefaultPlayer = async (identifier) => {
   return await PlayerState.create(newPlayer);
 };
 
+const normalizeIdentifier = (value) => {
+  if (!value || typeof value !== "string") return null;
+  return value.toLowerCase().trim();
+};
+
+const getIdentifierCandidate = (body) => {
+  return (
+    normalizeIdentifier(body.identifier) ||
+    normalizeIdentifier(body?.privyMetaData?.address) ||
+    normalizeIdentifier(body?.privyMetaData?.email) ||
+    normalizeIdentifier(body?.privyMetaData?.discord) ||
+    normalizeIdentifier(body.homeWalletAddress) ||
+    normalizeIdentifier(body.walletAddress)
+  );
+};
+
+const determinePrivyType = (meta = {}, walletCandidate) => {
+  if (meta.type) return meta.type;
+  if (meta.discordId) return 'discordId';
+  if (meta.discord) return 'discord';
+  if (meta.telegram) return 'telegram';
+  if (walletCandidate) return 'walletAddress';
+  if (meta.email) return 'email';
+  return 'unknown';
+};
+
+const applyPrivyMetaData = (player, meta = {}) => {
+  const now = new Date();
+  if (!player.privyData) {
+    player.privyData = {};
+  }
+
+  const walletCandidate =
+    normalizeIdentifier(meta.address) || normalizeIdentifier(meta.walletAddress);
+  if (walletCandidate) {
+    player.privyData.walletAddress = walletCandidate;
+  }
+
+  const setIfNormalized = (field, value) => {
+    if (value !== undefined && value !== null) {
+      const normalized = normalizeIdentifier(value);
+      if (normalized) {
+        player.privyData[field] = normalized;
+      }
+    }
+  };
+
+  if (meta.email) setIfNormalized('email', meta.email);
+  if (meta.discordId) player.privyData.discordId = meta.discordId;
+  if (meta.discord) player.privyData.discord = meta.discord;
+  if (meta.telegram) player.privyData.telegram = meta.telegram;
+  if (meta.providerName) player.privyData.providerName = meta.providerName;
+  if (meta.chainId) player.privyData.chainId = meta.chainId;
+  if (meta.privyUserId) player.privyData.privyUserId = meta.privyUserId;
+
+  player.privyData.type = determinePrivyType(meta, walletCandidate);
+  player.privyData.recordedAt = now;
+  player.lastUpdated = now;
+};
+
+const sanitizePlayerForClient = (player) => {
+  if (!player) return null;
+  const sanitized = player.toObject ? player.toObject() : { ...player };
+  return sanitized;
+};
+
+// ========== POST: RECORD PRIVY LOGIN ==========
+exports.recordPrivyLogin = async (req, res) => {
+  try {
+    const { privyMetaData = {} } = req.body;
+    const identifier = getIdentifierCandidate(req.body);
+
+    if (!identifier) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing identifier information (wallet/email/discord)",
+      });
+    }
+
+    let player = await findUserByIdentifier(identifier);
+
+    if (!player) {
+      player = await createDefaultPlayer(identifier);
+      console.log(`🆕 New player created during login for: ${identifier}`);
+    }
+
+    applyPrivyMetaData(player, privyMetaData);
+    await player.save();
+
+    res.json({
+      success: true,
+    });
+  } catch (err) {
+    console.error("❌ Error recording privy login:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 // ========== GET: ALL PLAYER DATA ==========
 exports.getAllPlayerData = async (req, res) => {
   try {
@@ -88,7 +189,7 @@ exports.getAllPlayerData = async (req, res) => {
 
     res.json({ 
       success: true, 
-      data: player 
+      data: sanitizePlayerForClient(player) 
     });
   } catch (err) {
     console.error("❌ Error getting all player data:", err);
@@ -260,7 +361,7 @@ exports.updateAllPlayerData = async (req, res) => {
 
     res.json({ 
       success: true, 
-      data: player 
+      data: sanitizePlayerForClient(player) 
     });
   } catch (err) {
     console.error("❌ Error updating all player data:", err);

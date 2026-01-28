@@ -6,7 +6,13 @@ const PlayerStateSchema = new mongoose.Schema({
     walletAddress: { type: String, lowercase: true, sparse: true, index: true },
     discord: { type: String, sparse: true, index: true },
     telegram: { type: String, sparse: true, index: true },
-    email: { type: String, lowercase: true, sparse: true, index: true }
+    email: { type: String, lowercase: true, sparse: true, index: true },
+    discordId: { type: String, sparse: true, index: true },
+    type: { type: String, default: 'unknown' },
+    providerName: { type: String },
+    chainId: { type: String },
+    privyUserId: { type: String },
+    recordedAt: { type: Date }
   },
 
   // ========== USER GAME DATA ==========
@@ -49,8 +55,10 @@ const PlayerStateSchema = new mongoose.Schema({
 PlayerStateSchema.index({
   'privyData.walletAddress': 1,
   'privyData.discord': 1,
+  'privyData.discordId': 1,
   'privyData.telegram': 1,
-  'privyData.email': 1
+  'privyData.email': 1,
+  'privyData.type': 1
 });
 
 module.exports = mongoose.model("HighwayHustlePlayer", PlayerStateSchema);
