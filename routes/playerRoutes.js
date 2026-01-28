@@ -7,6 +7,7 @@ const {
   getUserGameData,
   getPlayerGameModeData,
   getPlayerVehicleData,
+  getGateWalletLeaderboard,
   
   // POST endpoints
   updateAllPlayerData,
@@ -14,6 +15,7 @@ const {
   updateUserGameData,
   updatePlayerGameModeData,
   updatePlayerVehicleData,
+  recordPrivyLogin,
 
   // Campaign & Utilities
   checkUserAchievement,
@@ -47,6 +49,7 @@ router.get("/check-user-achievement", checkUserAchievement);
 
 // ========== UTILITIES ==========
 router.get("/leaderboard", getLeaderboard);
+router.get("/leaderboard/gate-wallet", getGateWalletLeaderboard);
 router.get("/users", getAllUsers);
 
 module.exports = router;

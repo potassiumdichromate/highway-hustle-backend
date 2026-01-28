@@ -603,3 +603,19 @@ exports.getAllUsers = async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 };
+
+exports.getGateWalletLeaderboard = async (req, res) => {
+  try {
+    const leaderboard = await PlayerState.find({ 'privyData.type': 'gate_wallet' })
+      .sort({ 'userGameData.currency': -1 })
+      .limit(10)
+      .select(
+        'privyData.walletAddress privyData.discord privyData.discordId privyData.telegram privyData.email userGameData.playerName userGameData.currency'
+      );
+
+    res.json({ success: true, leaderboard });
+  } catch (err) {
+    console.error("❌ Error getting gate wallet leaderboard:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
