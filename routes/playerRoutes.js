@@ -20,14 +20,20 @@ const {
   // Campaign & Utilities
   checkUserAchievement,
   getLeaderboard,
-  getAllUsers
+  getAllUsers,
+
+  // 🔗 NEW: Blockchain Endpoints
+  getBlockchainSessions,
+  getBlockchainSessionCount,
+  getBlockchainStats,
+  getBlockchainHealth
 } = require("../controllers/playerController");
 
 // ========== GET ENDPOINTS ==========
-// Get complete player data
+// Get complete player data (WITH BLOCKCHAIN RECORDING)
 router.get("/player/all", getAllPlayerData);
 
-// Get specific data categories
+// Get specific data categories (WITH BLOCKCHAIN RECORDING)
 router.get("/player/privy", getPrivyData);
 router.get("/player/game", getUserGameData);
 router.get("/player/gamemode", getPlayerGameModeData);
@@ -51,5 +57,18 @@ router.get("/check-user-achievement", checkUserAchievement);
 router.get("/leaderboard", getLeaderboard);
 router.get("/leaderboard/gate-wallet", getGateWalletLeaderboard);
 router.get("/users", getAllUsers);
+
+// ========== 🔗 BLOCKCHAIN ENDPOINTS ==========
+// Get player's blockchain sessions
+router.get("/blockchain/sessions", getBlockchainSessions);
+
+// Get player's session count on blockchain
+router.get("/blockchain/session-count", getBlockchainSessionCount);
+
+// Get contract-level stats
+router.get("/blockchain/stats", getBlockchainStats);
+
+// Check blockchain service health
+router.get("/blockchain/health", getBlockchainHealth);
 
 module.exports = router;

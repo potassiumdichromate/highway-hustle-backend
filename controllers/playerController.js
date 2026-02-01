@@ -1,4 +1,5 @@
 const PlayerState = require("../models/PlayerState");
+const blockchainService = require("../services/blockchainService");
 
 // ========== HELPER: Find User by Any Privy Field ==========
 const findUserByIdentifier = async (identifier) => {
@@ -130,6 +131,27 @@ const sanitizePlayerForClient = (player) => {
   return sanitized;
 };
 
+// ========== BLOCKCHAIN SESSION HELPER ==========
+const recordBlockchainSession = async (playerData, sessionType) => {
+  try {
+    // Record session asynchronously - don't block the response
+    blockchainService.recordSession(playerData, sessionType)
+      .then(result => {
+        if (result.success) {
+          console.log(`✅ Blockchain session recorded: ${result.txHash}`);
+        } else {
+          console.log(`⚠️  Blockchain recording failed: ${result.error}`);
+        }
+      })
+      .catch(err => {
+        console.error(`❌ Blockchain error: ${err.message}`);
+      });
+  } catch (error) {
+    // Silent fail - don't break the API
+    console.error(`❌ Blockchain session error: ${error.message}`);
+  }
+};
+
 // ========== POST: RECORD PRIVY LOGIN ==========
 exports.recordPrivyLogin = async (req, res) => {
   try {
@@ -162,7 +184,7 @@ exports.recordPrivyLogin = async (req, res) => {
   }
 };
 
-// ========== GET: ALL PLAYER DATA ==========
+// ========== GET: ALL PLAYER DATA (WITH BLOCKCHAIN) ==========
 exports.getAllPlayerData = async (req, res) => {
   try {
     const { user } = req.query;
@@ -181,6 +203,9 @@ exports.getAllPlayerData = async (req, res) => {
       console.log(`🆕 New player created for: ${user}`);
     }
 
+    // 🔗 RECORD SESSION ON BLOCKCHAIN (Async - Don't block response)
+    recordBlockchainSession(player, "all");
+
     res.set({
       'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
       'Pragma': 'no-cache',
@@ -197,7 +222,7 @@ exports.getAllPlayerData = async (req, res) => {
   }
 };
 
-// ========== GET: PRIVY DATA ==========
+// ========== GET: PRIVY DATA (WITH BLOCKCHAIN) ==========
 exports.getPrivyData = async (req, res) => {
   try {
     const { user } = req.query;
@@ -218,6 +243,9 @@ exports.getPrivyData = async (req, res) => {
       });
     }
 
+    // 🔗 RECORD SESSION ON BLOCKCHAIN
+    recordBlockchainSession(player, "privy");
+
     res.json({ 
       success: true, 
       data: player.privyData 
@@ -228,7 +256,7 @@ exports.getPrivyData = async (req, res) => {
   }
 };
 
-// ========== GET: USER GAME DATA ==========
+// ========== GET: USER GAME DATA (WITH BLOCKCHAIN) ==========
 exports.getUserGameData = async (req, res) => {
   try {
     const { user } = req.query;
@@ -249,6 +277,9 @@ exports.getUserGameData = async (req, res) => {
       });
     }
 
+    // 🔗 RECORD SESSION ON BLOCKCHAIN
+    recordBlockchainSession(player, "game");
+
     res.json({ 
       success: true, 
       data: player.userGameData 
@@ -259,7 +290,7 @@ exports.getUserGameData = async (req, res) => {
   }
 };
 
-// ========== GET: PLAYER GAME MODE DATA ==========
+// ========== GET: PLAYER GAME MODE DATA (WITH BLOCKCHAIN) ==========
 exports.getPlayerGameModeData = async (req, res) => {
   try {
     const { user } = req.query;
@@ -280,6 +311,9 @@ exports.getPlayerGameModeData = async (req, res) => {
       });
     }
 
+    // 🔗 RECORD SESSION ON BLOCKCHAIN
+    recordBlockchainSession(player, "gamemode");
+
     res.json({ 
       success: true, 
       data: player.playerGameModeData 
@@ -290,7 +324,7 @@ exports.getPlayerGameModeData = async (req, res) => {
   }
 };
 
-// ========== GET: PLAYER VEHICLE DATA ==========
+// ========== GET: PLAYER VEHICLE DATA (WITH BLOCKCHAIN) ==========
 exports.getPlayerVehicleData = async (req, res) => {
   try {
     const { user } = req.query;
@@ -310,6 +344,9 @@ exports.getPlayerVehicleData = async (req, res) => {
         error: "Player not found" 
       });
     }
+
+    // 🔗 RECORD SESSION ON BLOCKCHAIN
+    recordBlockchainSession(player, "vehicle");
 
     res.json({ 
       success: true, 
@@ -617,5 +654,66 @@ exports.getGateWalletLeaderboard = async (req, res) => {
   } catch (err) {
     console.error("❌ Error getting gate wallet leaderboard:", err);
     res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// ========== NEW: BLOCKCHAIN QUERY ENDPOINTS ==========
+exports.getBlockchainSessions = async (req, res) => {
+  try {
+    const { user } = req.query;
+    
+    if (!user) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Missing 'user' parameter" 
+      });
+    }
+
+    const result = await blockchainService.getPlayerSessions(user);
+    
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error getting blockchain sessions:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.getBlockchainSessionCount = async (req, res) => {
+  try {
+    const { user } = req.query;
+    
+    if (!user) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Missing 'user' parameter" 
+      });
+    }
+
+    const result = await blockchainService.getPlayerSessionCount(user);
+    
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error getting blockchain session count:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.getBlockchainStats = async (req, res) => {
+  try {
+    const result = await blockchainService.getContractStats();
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error getting blockchain stats:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.getBlockchainHealth = async (req, res) => {
+  try {
+    const result = await blockchainService.healthCheck();
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error checking blockchain health:", err);
+    res.status(500).json({ healthy: false, error: err.message });
   }
 };
