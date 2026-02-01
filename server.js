@@ -61,16 +61,36 @@ app.use((err, req, res, next) => {
 
 // ========== DATABASE CONNECTION ==========
 mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 5000,
+  serverSelectionTimeoutMS: 10000,
   socketTimeoutMS: 45000,
 })
 .then(() => console.log("✅ MongoDB Connected"))
 .catch(err => {
-  console.error("❌ MongoDB Connection Error:", err);
-  process.exit(1);
+  console.error("❌ MongoDB Connection Error:", err.message);
+  console.log("⚠️  Backend running without MongoDB. Blockchain features still work!");
 });
+
+// ========== INITIALIZE BLOCKCHAIN SERVICE ON STARTUP ==========
+const blockchainService = require("./services/blockchainService");
+
+async function initializeBlockchain() {
+  console.log("\n🔗 Starting Blockchain Service...");
+  try {
+    const result = await blockchainService.initialize();
+    if (result.success) {
+      console.log("✅ Blockchain service ready!\n");
+    } else {
+      console.error("❌ Blockchain initialization failed:", result.error);
+      console.log("⚠️  Backend running without blockchain. API still works!\n");
+    }
+  } catch (error) {
+    console.error("❌ Blockchain startup error:", error.message);
+    console.log("⚠️  Backend running without blockchain. API still works!\n");
+  }
+}
+
+// Initialize blockchain after a short delay to ensure server is ready
+setTimeout(initializeBlockchain, 2000);
 
 // ========== GRACEFUL SHUTDOWN ==========
 process.on('SIGINT', async () => {
