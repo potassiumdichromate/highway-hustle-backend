@@ -613,6 +613,71 @@ exports.checkUserAchievement = async (req, res) => {
   }
 };
 
+// ========== CAMPAIGN: Check Achievement (Gate Integration, path param + proper status codes) ==========
+exports.checkGateUserAchievement = async (req, res) => {
+  try {
+    const addressParam = req.params.address || req.params.user;
+    const queryParam = req.query.user || req.query.address;
+    const user = normalizeIdentifier(addressParam || queryParam);
+
+    if (!user) {
+      return res.status(400).json({
+        message: "failed, missing user parameter",
+        code: 400,
+        data: {
+          Achieved1000M: false,
+          result: false
+        }
+      });
+    }
+
+    const player = await findUserByIdentifier(user);
+
+    if (!player) {
+      return res.status(404).json({
+        message: "failed, user doesn't qualified",
+        code: 404,
+        data: {
+          Achieved1000M: false,
+          result: false
+        }
+      });
+    }
+
+    const achieved = player.campaignData?.Achieved1000M || false;
+
+    if (achieved) {
+      return res.status(200).json({
+        message: "successful",
+        code: 200,
+        data: {
+          Achieved1000M: true,
+          result: true
+        }
+      });
+    }
+
+    return res.status(404).json({
+      message: "failed, user doesn't qualified",
+      code: 404,
+      data: {
+        Achieved1000M: false,
+        result: false
+      }
+    });
+  } catch (err) {
+    console.error("❌ Error checking gate user achievement:", err);
+    return res.status(500).json({
+      message: "failed, server error",
+      code: 500,
+      data: {
+        Achieved1000M: false,
+        result: false
+      }
+    });
+  }
+};
+
 // ========== LEADERBOARD & UTILITIES ==========
 exports.getLeaderboard = async (req, res) => {
   try {

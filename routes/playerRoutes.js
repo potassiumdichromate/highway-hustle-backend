@@ -8,6 +8,7 @@ const {
   getPlayerGameModeData,
   getPlayerVehicleData,
   getGateWalletLeaderboard,
+  checkGateUserAchievement,
   
   // POST endpoints
   updateAllPlayerData,
@@ -52,6 +53,8 @@ router.post("/player/login", recordPrivyLogin);
 
 // ========== CAMPAIGN & GALXE INTEGRATION ==========
 router.get("/check-user-achievement", checkUserAchievement);
+router.get("/check-gate-user-achievement/:address?", checkGateUserAchievement);
+router.get("/check-gate-user-achievement", checkGateUserAchievement);
 
 // ========== UTILITIES ==========
 router.get("/leaderboard", getLeaderboard);
