@@ -1,5 +1,9 @@
 const PlayerState = require("../models/PlayerState");
 const blockchainService = require("../services/blockchainService");
+const vehicleBlockchainService = require("../services/vehicleBlockchainService");
+const missionBlockchainService = require("../services/missionBlockchainService");
+const scoreBlockchainService = require("../services/scoreBlockchainService");
+const economyBlockchainService = require("../services/economyBlockchainService");
 
 // ========== HELPER: Find User by Any Privy Field ==========
 const findUserByIdentifier = async (identifier) => {
@@ -131,10 +135,11 @@ const sanitizePlayerForClient = (player) => {
   return sanitized;
 };
 
-// ========== BLOCKCHAIN SESSION HELPER ==========
+// ========== BLOCKCHAIN HELPERS ==========
+
+// Session recording helper
 const recordBlockchainSession = async (playerData, sessionType) => {
   try {
-    // Record session asynchronously - don't block the response
     blockchainService.recordSession(playerData, sessionType)
       .then(result => {
         if (result.success) {
@@ -147,8 +152,91 @@ const recordBlockchainSession = async (playerData, sessionType) => {
         console.error(`❌ Blockchain error: ${err.message}`);
       });
   } catch (error) {
-    // Silent fail - don't break the API
     console.error(`❌ Blockchain session error: ${error.message}`);
+  }
+};
+
+// Vehicle switch helper
+const recordVehicleSwitch = async (playerData, newVehicleIndex) => {
+  try {
+    vehicleBlockchainService.switchVehicle(playerData, newVehicleIndex)
+      .then(result => {
+        if (result.success) {
+          console.log(`✅ Vehicle switch recorded: ${result.txHash}`);
+        } else {
+          console.log(`⚠️  Vehicle switch failed: ${result.error}`);
+        }
+      })
+      .catch(err => {
+        console.error(`❌ Vehicle blockchain error: ${err.message}`);
+      });
+  } catch (error) {
+    console.error(`❌ Vehicle switch error: ${error.message}`);
+  }
+};
+
+// Achievement unlock helper
+const recordAchievementUnlock = async (playerData, achievementId) => {
+  try {
+    missionBlockchainService.unlockAchievement(playerData, achievementId)
+      .then(result => {
+        if (result.success) {
+          console.log(`✅ Achievement recorded: ${result.txHash}`);
+        } else {
+          console.log(`⚠️  Achievement unlock failed: ${result.error}`);
+        }
+      })
+      .catch(err => {
+        console.error(`❌ Achievement blockchain error: ${err.message}`);
+      });
+  } catch (error) {
+    console.error(`❌ Achievement unlock error: ${error.message}`);
+  }
+};
+
+// Score submission helper
+const recordScoreSubmission = async (playerData, gameModeData) => {
+  try {
+    scoreBlockchainService.submitScore(playerData, gameModeData)
+      .then(result => {
+        if (result.success) {
+          console.log(`✅ Score recorded: ${result.txHash}`);
+        } else {
+          console.log(`⚠️  Score submission failed: ${result.error}`);
+        }
+      })
+      .catch(err => {
+        console.error(`❌ Score blockchain error: ${err.message}`);
+      });
+  } catch (error) {
+    console.error(`❌ Score submission error: ${error.message}`);
+  }
+};
+
+// Currency transaction helper
+const recordCurrencyTransaction = async (playerData, oldCurrency, newCurrency) => {
+  try {
+    const difference = newCurrency - oldCurrency;
+    if (difference === 0) return;
+
+    const transactionType = difference > 0 ? "GameEarning" : "VehiclePurchase";
+    const description = difference > 0 
+      ? `Earned ${difference} currency` 
+      : `Spent ${Math.abs(difference)} currency`;
+
+    economyBlockchainService.recordTransaction(playerData, transactionType, difference, description)
+      .then(result => {
+        if (result.success) {
+          console.log(`✅ Transaction recorded: ${result.txHash}`);
+        } else {
+          console.log(`⚠️  Transaction failed: ${result.error}`);
+        }
+      })
+      .catch(err => {
+        console.error(`❌ Economy blockchain error: ${err.message}`);
+      });
+  } catch (error) {
+    console.error(`❌ Currency transaction error: ${error.message}`);
   }
 };
 
@@ -203,7 +291,7 @@ exports.getAllPlayerData = async (req, res) => {
       console.log(`🆕 New player created for: ${user}`);
     }
 
-    // 🔗 RECORD SESSION ON BLOCKCHAIN (Async - Don't block response)
+    // Record session on blockchain (async)
     recordBlockchainSession(player, "all");
 
     res.set({
@@ -243,7 +331,7 @@ exports.getPrivyData = async (req, res) => {
       });
     }
 
-    // 🔗 RECORD SESSION ON BLOCKCHAIN
+    // Record session on blockchain
     recordBlockchainSession(player, "privy");
 
     res.json({ 
@@ -277,7 +365,7 @@ exports.getUserGameData = async (req, res) => {
       });
     }
 
-    // 🔗 RECORD SESSION ON BLOCKCHAIN
+    // Record session on blockchain
     recordBlockchainSession(player, "game");
 
     res.json({ 
@@ -311,7 +399,7 @@ exports.getPlayerGameModeData = async (req, res) => {
       });
     }
 
-    // 🔗 RECORD SESSION ON BLOCKCHAIN
+    // Record session on blockchain
     recordBlockchainSession(player, "gamemode");
 
     res.json({ 
@@ -345,7 +433,7 @@ exports.getPlayerVehicleData = async (req, res) => {
       });
     }
 
-    // 🔗 RECORD SESSION ON BLOCKCHAIN
+    // Record session on blockchain
     recordBlockchainSession(player, "vehicle");
 
     res.json({ 
@@ -358,7 +446,7 @@ exports.getPlayerVehicleData = async (req, res) => {
   }
 };
 
-// ========== POST: UPDATE ALL PLAYER DATA ==========
+// ========== POST: UPDATE ALL PLAYER DATA (WITH BLOCKCHAIN) ==========
 exports.updateAllPlayerData = async (req, res) => {
   try {
     const { user } = req.query;
@@ -386,6 +474,11 @@ exports.updateAllPlayerData = async (req, res) => {
       });
     }
 
+    // Track changes for blockchain
+    const oldCurrency = player.userGameData.currency;
+    const oldVehicleIndex = player.playerVehicleData.selectedPlayerCarIndex;
+    const oldAchievement = player.campaignData?.Achieved1000M;
+
     // Merge updates
     if (updateData.privyData) Object.assign(player.privyData, updateData.privyData);
     if (updateData.userGameData) Object.assign(player.userGameData, updateData.userGameData);
@@ -395,6 +488,31 @@ exports.updateAllPlayerData = async (req, res) => {
 
     player.lastUpdated = new Date();
     await player.save();
+
+    // Record blockchain changes asynchronously
+    
+    // Currency change
+    const newCurrency = player.userGameData.currency;
+    if (newCurrency !== oldCurrency) {
+      recordCurrencyTransaction(player, oldCurrency, newCurrency);
+    }
+
+    // Vehicle switch
+    const newVehicleIndex = player.playerVehicleData.selectedPlayerCarIndex;
+    if (newVehicleIndex !== oldVehicleIndex) {
+      recordVehicleSwitch(player, newVehicleIndex);
+    }
+
+    // Achievement unlock
+    const newAchievement = player.campaignData?.Achieved1000M;
+    if (newAchievement && !oldAchievement) {
+      recordAchievementUnlock(player, "ACHIEVED_1000M");
+    }
+
+    // Score submission (if any score changed)
+    if (updateData.playerGameModeData) {
+      recordScoreSubmission(player, player.playerGameModeData);
+    }
 
     res.json({ 
       success: true, 
@@ -442,7 +560,7 @@ exports.updatePrivyData = async (req, res) => {
   }
 };
 
-// ========== POST: UPDATE USER GAME DATA ==========
+// ========== POST: UPDATE USER GAME DATA (WITH BLOCKCHAIN) ==========
 exports.updateUserGameData = async (req, res) => {
   try {
     const { user } = req.query;
@@ -469,6 +587,15 @@ exports.updateUserGameData = async (req, res) => {
       updateData.totalPlayedTime = parseFloat(updateData.totalPlayedTime);
     }
 
+    // Check currency change
+    const oldCurrency = player.userGameData.currency;
+    const newCurrency = updateData.currency !== undefined ? updateData.currency : oldCurrency;
+
+    if (newCurrency !== oldCurrency) {
+      // Record currency transaction on blockchain
+      recordCurrencyTransaction(player, oldCurrency, newCurrency);
+    }
+
     Object.assign(player.userGameData, updateData);
     player.lastUpdated = new Date();
     await player.save();
@@ -483,7 +610,7 @@ exports.updateUserGameData = async (req, res) => {
   }
 };
 
-// ========== POST: UPDATE PLAYER GAME MODE DATA ==========
+// ========== POST: UPDATE PLAYER GAME MODE DATA (WITH BLOCKCHAIN) ==========
 exports.updatePlayerGameModeData = async (req, res) => {
   try {
     const { user } = req.query;
@@ -505,7 +632,21 @@ exports.updatePlayerGameModeData = async (req, res) => {
       });
     }
 
+    // Check if any score improved
+    const oldScores = { ...player.playerGameModeData };
     Object.assign(player.playerGameModeData, updateData);
+
+    const scoresChanged = 
+      (updateData.bestScoreOneWay && updateData.bestScoreOneWay > oldScores.bestScoreOneWay) ||
+      (updateData.bestScoreTwoWay && updateData.bestScoreTwoWay > oldScores.bestScoreTwoWay) ||
+      (updateData.bestScoreTimeAttack && updateData.bestScoreTimeAttack > oldScores.bestScoreTimeAttack) ||
+      (updateData.bestScoreBomb && updateData.bestScoreBomb > oldScores.bestScoreBomb);
+
+    if (scoresChanged) {
+      // Record score on blockchain
+      recordScoreSubmission(player, player.playerGameModeData);
+    }
+
     player.lastUpdated = new Date();
     await player.save();
 
@@ -519,7 +660,7 @@ exports.updatePlayerGameModeData = async (req, res) => {
   }
 };
 
-// ========== POST: UPDATE PLAYER VEHICLE DATA ==========
+// ========== POST: UPDATE PLAYER VEHICLE DATA (WITH BLOCKCHAIN) ==========
 exports.updatePlayerVehicleData = async (req, res) => {
   try {
     const { user } = req.query;
@@ -539,6 +680,15 @@ exports.updatePlayerVehicleData = async (req, res) => {
         success: false, 
         error: "Player not found" 
       });
+    }
+
+    // Check if vehicle is being switched
+    const oldVehicleIndex = player.playerVehicleData.selectedPlayerCarIndex;
+    const newVehicleIndex = updateData.selectedPlayerCarIndex;
+
+    if (newVehicleIndex !== undefined && newVehicleIndex !== oldVehicleIndex) {
+      // Record vehicle switch on blockchain
+      recordVehicleSwitch(player, newVehicleIndex);
     }
 
     Object.assign(player.playerVehicleData, updateData);
@@ -613,7 +763,7 @@ exports.checkUserAchievement = async (req, res) => {
   }
 };
 
-// ========== CAMPAIGN: Check Achievement (Gate Integration, path param + proper status codes) ==========
+// ========== CAMPAIGN: Check Achievement (Gate Integration) ==========
 exports.checkGateUserAchievement = async (req, res) => {
   try {
     const addressParam = req.params.address || req.params.user;
@@ -722,7 +872,7 @@ exports.getGateWalletLeaderboard = async (req, res) => {
   }
 };
 
-// ========== NEW: BLOCKCHAIN QUERY ENDPOINTS ==========
+// ========== SESSION BLOCKCHAIN ENDPOINTS ==========
 exports.getBlockchainSessions = async (req, res) => {
   try {
     const { user } = req.query;
@@ -779,6 +929,206 @@ exports.getBlockchainHealth = async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error("❌ Error checking blockchain health:", err);
+    res.status(500).json({ healthy: false, error: err.message });
+  }
+};
+
+// ========== VEHICLE BLOCKCHAIN ENDPOINTS ==========
+exports.getBlockchainVehicles = async (req, res) => {
+  try {
+    const { user } = req.query;
+    if (!user) {
+      return res.status(400).json({ success: false, error: "Missing 'user' parameter" });
+    }
+
+    const result = await vehicleBlockchainService.getPlayerVehicles(user);
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error getting blockchain vehicles:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.getVehicleSwitchHistory = async (req, res) => {
+  try {
+    const { user } = req.query;
+    if (!user) {
+      return res.status(400).json({ success: false, error: "Missing 'user' parameter" });
+    }
+
+    const result = await vehicleBlockchainService.getPlayerSwitchHistory(user);
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error getting switch history:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.getVehicleStats = async (req, res) => {
+  try {
+    const result = await vehicleBlockchainService.getStats();
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error getting vehicle stats:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.getVehicleHealth = async (req, res) => {
+  try {
+    const result = await vehicleBlockchainService.healthCheck();
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error checking vehicle health:", err);
+    res.status(500).json({ healthy: false, error: err.message });
+  }
+};
+
+// ========== MISSION BLOCKCHAIN ENDPOINTS ==========
+exports.getBlockchainAchievements = async (req, res) => {
+  try {
+    const { user } = req.query;
+    if (!user) {
+      return res.status(400).json({ success: false, error: "Missing 'user' parameter" });
+    }
+
+    const result = await missionBlockchainService.getPlayerAchievements(user);
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error getting blockchain achievements:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.checkBlockchainAchievement = async (req, res) => {
+  try {
+    const { user, achievementId } = req.query;
+    if (!user || !achievementId) {
+      return res.status(400).json({ success: false, error: "Missing parameters" });
+    }
+
+    const result = await missionBlockchainService.hasAchievement(user, achievementId);
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error checking blockchain achievement:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.getMissionStats = async (req, res) => {
+  try {
+    const result = await missionBlockchainService.getStats();
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error getting mission stats:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.getMissionHealth = async (req, res) => {
+  try {
+    const result = await missionBlockchainService.healthCheck();
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error checking mission health:", err);
+    res.status(500).json({ healthy: false, error: err.message });
+  }
+};
+
+// ========== SCORE BLOCKCHAIN ENDPOINTS ==========
+exports.getBlockchainScores = async (req, res) => {
+  try {
+    const { user } = req.query;
+    if (!user) {
+      return res.status(400).json({ success: false, error: "Missing 'user' parameter" });
+    }
+
+    const result = await scoreBlockchainService.getPlayerStats(user);
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error getting blockchain scores:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.getBlockchainLeaderboard = async (req, res) => {
+  try {
+    const { gameMode = 0, topN = 10 } = req.query;
+    const result = await scoreBlockchainService.getLeaderboard(parseInt(gameMode), parseInt(topN));
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error getting blockchain leaderboard:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.getScoreStats = async (req, res) => {
+  try {
+    const result = await scoreBlockchainService.getStats();
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error getting score stats:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.getScoreHealth = async (req, res) => {
+  try {
+    const result = await scoreBlockchainService.healthCheck();
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error checking score health:", err);
+    res.status(500).json({ healthy: false, error: err.message });
+  }
+};
+
+// ========== ECONOMY BLOCKCHAIN ENDPOINTS ==========
+exports.getBlockchainEconomy = async (req, res) => {
+  try {
+    const { user } = req.query;
+    if (!user) {
+      return res.status(400).json({ success: false, error: "Missing 'user' parameter" });
+    }
+
+    const result = await economyBlockchainService.getPlayerEconomy(user);
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error getting blockchain economy:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.getBlockchainStreak = async (req, res) => {
+  try {
+    const { user } = req.query;
+    if (!user) {
+      return res.status(400).json({ success: false, error: "Missing 'user' parameter" });
+    }
+
+    const result = await economyBlockchainService.getDailyStreak(user);
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error getting blockchain streak:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.getEconomyStats = async (req, res) => {
+  try {
+    const result = await economyBlockchainService.getStats();
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error getting economy stats:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.getEconomyHealth = async (req, res) => {
+  try {
+    const result = await economyBlockchainService.healthCheck();
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error checking economy health:", err);
     res.status(500).json({ healthy: false, error: err.message });
   }
 };

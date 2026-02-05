@@ -70,22 +70,50 @@ mongoose.connect(process.env.MONGO_URI, {
   console.log("⚠️  Backend running without MongoDB. Blockchain features still work!");
 });
 
-// ========== INITIALIZE BLOCKCHAIN SERVICE ON STARTUP ==========
+// ========== INITIALIZE ALL BLOCKCHAIN SERVICES ON STARTUP ==========
 const blockchainService = require("./services/blockchainService");
+const vehicleBlockchainService = require("./services/vehicleBlockchainService");
+const missionBlockchainService = require("./services/missionBlockchainService");
+const scoreBlockchainService = require("./services/scoreBlockchainService");
+const economyBlockchainService = require("./services/economyBlockchainService");
 
 async function initializeBlockchain() {
-  console.log("\n🔗 Starting Blockchain Service...");
-  try {
-    const result = await blockchainService.initialize();
-    if (result.success) {
-      console.log("✅ Blockchain service ready!\n");
-    } else {
-      console.error("❌ Blockchain initialization failed:", result.error);
-      console.log("⚠️  Backend running without blockchain. API still works!\n");
+  console.log("\n🔗 Starting Blockchain Services...\n");
+  
+  const services = [
+    { name: "Session Tracker", service: blockchainService },
+    { name: "Vehicle Manager", service: vehicleBlockchainService },
+    { name: "Mission Manager", service: missionBlockchainService },
+    { name: "Score Manager", service: scoreBlockchainService },
+    { name: "Economy Manager", service: economyBlockchainService }
+  ];
+
+  let successCount = 0;
+  let failCount = 0;
+
+  for (const { name, service } of services) {
+    try {
+      const result = await service.initialize();
+      if (result.success) {
+        successCount++;
+      } else {
+        failCount++;
+        console.error(`❌ ${name} failed:`, result.error);
+      }
+    } catch (error) {
+      failCount++;
+      console.error(`❌ ${name} error:`, error.message);
     }
-  } catch (error) {
-    console.error("❌ Blockchain startup error:", error.message);
-    console.log("⚠️  Backend running without blockchain. API still works!\n");
+  }
+  
+  console.log(`\n📊 Blockchain Initialization Summary:`);
+  console.log(`   ✅ Successful: ${successCount}/${services.length}`);
+  console.log(`   ❌ Failed: ${failCount}/${services.length}`);
+  
+  if (successCount > 0) {
+    console.log(`\n✅ Backend ready with ${successCount} blockchain service(s)!\n`);
+  } else {
+    console.log(`\n⚠️  Backend running without blockchain services. API still works!\n`);
   }
 }
 
@@ -110,6 +138,7 @@ const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
   console.log(`🚀 Highway Hustle Backend running on port ${PORT}`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔗 Blockchain Integration: Enabled (5 contracts)`);
 });
 
 module.exports = app;
