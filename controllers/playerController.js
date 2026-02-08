@@ -135,108 +135,99 @@ const sanitizePlayerForClient = (player) => {
   return sanitized;
 };
 
-// ========== BLOCKCHAIN HELPERS ==========
+// ========== UPDATED BLOCKCHAIN HELPERS - NOW RETURN PROMISES ==========
 
-// Session recording helper
+// Session recording helper - UPDATED to return result
 const recordBlockchainSession = async (playerData, sessionType) => {
   try {
-    blockchainService.recordSession(playerData, sessionType)
-      .then(result => {
-        if (result.success) {
-          console.log(`✅ Blockchain session recorded: ${result.txHash}`);
-        } else {
-          console.log(`⚠️  Blockchain recording failed: ${result.error}`);
-        }
-      })
-      .catch(err => {
-        console.error(`❌ Blockchain error: ${err.message}`);
-      });
+    const result = await blockchainService.recordSession(playerData, sessionType);
+    if (result.success) {
+      console.log(`✅ Blockchain session recorded: ${result.txHash}`);
+    } else {
+      console.log(`⚠️  Blockchain recording failed: ${result.error}`);
+    }
+    return result;
   } catch (error) {
     console.error(`❌ Blockchain session error: ${error.message}`);
+    return { success: false, error: error.message };
   }
 };
 
-// Vehicle switch helper
+// Vehicle switch helper - UPDATED to return result
 const recordVehicleSwitch = async (playerData, newVehicleIndex) => {
   try {
-    vehicleBlockchainService.switchVehicle(playerData, newVehicleIndex)
-      .then(result => {
-        if (result.success) {
-          console.log(`✅ Vehicle switch recorded: ${result.txHash}`);
-        } else {
-          console.log(`⚠️  Vehicle switch failed: ${result.error}`);
-        }
-      })
-      .catch(err => {
-        console.error(`❌ Vehicle blockchain error: ${err.message}`);
-      });
+    const result = await vehicleBlockchainService.switchVehicle(playerData, newVehicleIndex);
+    if (result.success) {
+      console.log(`✅ Vehicle switch recorded: ${result.txHash}`);
+    } else {
+      console.log(`⚠️  Vehicle switch failed: ${result.error}`);
+    }
+    return result;
   } catch (error) {
     console.error(`❌ Vehicle switch error: ${error.message}`);
+    return { success: false, error: error.message };
   }
 };
 
-// Achievement unlock helper
+// Achievement unlock helper - UPDATED to return result
 const recordAchievementUnlock = async (playerData, achievementId) => {
   try {
-    missionBlockchainService.unlockAchievement(playerData, achievementId)
-      .then(result => {
-        if (result.success) {
-          console.log(`✅ Achievement recorded: ${result.txHash}`);
-        } else {
-          console.log(`⚠️  Achievement unlock failed: ${result.error}`);
-        }
-      })
-      .catch(err => {
-        console.error(`❌ Achievement blockchain error: ${err.message}`);
-      });
+    const result = await missionBlockchainService.unlockAchievement(playerData, achievementId);
+    if (result.success) {
+      console.log(`✅ Achievement recorded: ${result.txHash}`);
+    } else {
+      console.log(`⚠️  Achievement unlock failed: ${result.error}`);
+    }
+    return result;
   } catch (error) {
     console.error(`❌ Achievement unlock error: ${error.message}`);
+    return { success: false, error: error.message };
   }
 };
 
-// Score submission helper
+// Score submission helper - UPDATED to return result
 const recordScoreSubmission = async (playerData, gameModeData) => {
   try {
-    scoreBlockchainService.submitScore(playerData, gameModeData)
-      .then(result => {
-        if (result.success) {
-          console.log(`✅ Score recorded: ${result.txHash}`);
-        } else {
-          console.log(`⚠️  Score submission failed: ${result.error}`);
-        }
-      })
-      .catch(err => {
-        console.error(`❌ Score blockchain error: ${err.message}`);
-      });
+    const result = await scoreBlockchainService.submitScore(playerData, gameModeData);
+    if (result.success) {
+      console.log(`✅ Score recorded: ${result.txHash}`);
+    } else {
+      console.log(`⚠️  Score submission failed: ${result.error}`);
+    }
+    return result;
   } catch (error) {
     console.error(`❌ Score submission error: ${error.message}`);
+    return { success: false, error: error.message };
   }
 };
 
-// Currency transaction helper
+// Currency transaction helper - UPDATED to return result
 const recordCurrencyTransaction = async (playerData, oldCurrency, newCurrency) => {
   try {
     const difference = newCurrency - oldCurrency;
-    if (difference === 0) return;
+    if (difference === 0) return { success: false, error: 'No change' };
 
     const transactionType = difference > 0 ? "GameEarning" : "VehiclePurchase";
     const description = difference > 0 
       ? `Earned ${difference} currency` 
       : `Spent ${Math.abs(difference)} currency`;
 
-    economyBlockchainService.recordTransaction(playerData, transactionType, difference, description)
-      .then(result => {
-        if (result.success) {
-          console.log(`✅ Transaction recorded: ${result.txHash}`);
-        } else {
-          console.log(`⚠️  Transaction failed: ${result.error}`);
-        }
-      })
-      .catch(err => {
-        console.error(`❌ Economy blockchain error: ${err.message}`);
-      });
+    const result = await economyBlockchainService.recordTransaction(
+      playerData, 
+      transactionType, 
+      difference, 
+      description
+    );
+    
+    if (result.success) {
+      console.log(`✅ Transaction recorded: ${result.txHash}`);
+    } else {
+      console.log(`⚠️  Transaction failed: ${result.error}`);
+    }
+    return result;
   } catch (error) {
     console.error(`❌ Currency transaction error: ${error.message}`);
+    return { success: false, error: error.message };
   }
 };
 
@@ -272,7 +263,7 @@ exports.recordPrivyLogin = async (req, res) => {
   }
 };
 
-// ========== GET: ALL PLAYER DATA (WITH BLOCKCHAIN) ==========
+// ========== GET: ALL PLAYER DATA (WITH BLOCKCHAIN) - UPDATED ==========
 exports.getAllPlayerData = async (req, res) => {
   try {
     const { user } = req.query;
@@ -291,8 +282,8 @@ exports.getAllPlayerData = async (req, res) => {
       console.log(`🆕 New player created for: ${user}`);
     }
 
-    // Record session on blockchain (async)
-    recordBlockchainSession(player, "all");
+    // Record session on blockchain and get result
+    const blockchainResult = await recordBlockchainSession(player, "all");
 
     res.set({
       'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -302,7 +293,8 @@ exports.getAllPlayerData = async (req, res) => {
 
     res.json({ 
       success: true, 
-      data: sanitizePlayerForClient(player) 
+      data: sanitizePlayerForClient(player),
+      blockchain: blockchainResult // NEW: Return blockchain result
     });
   } catch (err) {
     console.error("❌ Error getting all player data:", err);
@@ -310,7 +302,7 @@ exports.getAllPlayerData = async (req, res) => {
   }
 };
 
-// ========== GET: PRIVY DATA (WITH BLOCKCHAIN) ==========
+// ========== GET: PRIVY DATA (WITH BLOCKCHAIN) - UPDATED ==========
 exports.getPrivyData = async (req, res) => {
   try {
     const { user } = req.query;
@@ -331,12 +323,12 @@ exports.getPrivyData = async (req, res) => {
       });
     }
 
-    // Record session on blockchain
-    recordBlockchainSession(player, "privy");
+    const blockchainResult = await recordBlockchainSession(player, "privy");
 
     res.json({ 
       success: true, 
-      data: player.privyData 
+      data: player.privyData,
+      blockchain: blockchainResult // NEW
     });
   } catch (err) {
     console.error("❌ Error getting privy data:", err);
@@ -344,7 +336,7 @@ exports.getPrivyData = async (req, res) => {
   }
 };
 
-// ========== GET: USER GAME DATA (WITH BLOCKCHAIN) ==========
+// ========== GET: USER GAME DATA (WITH BLOCKCHAIN) - UPDATED ==========
 exports.getUserGameData = async (req, res) => {
   try {
     const { user } = req.query;
@@ -365,12 +357,12 @@ exports.getUserGameData = async (req, res) => {
       });
     }
 
-    // Record session on blockchain
-    recordBlockchainSession(player, "game");
+    const blockchainResult = await recordBlockchainSession(player, "game");
 
     res.json({ 
       success: true, 
-      data: player.userGameData 
+      data: player.userGameData,
+      blockchain: blockchainResult // NEW
     });
   } catch (err) {
     console.error("❌ Error getting user game data:", err);
@@ -378,7 +370,7 @@ exports.getUserGameData = async (req, res) => {
   }
 };
 
-// ========== GET: PLAYER GAME MODE DATA (WITH BLOCKCHAIN) ==========
+// ========== GET: PLAYER GAME MODE DATA (WITH BLOCKCHAIN) - UPDATED ==========
 exports.getPlayerGameModeData = async (req, res) => {
   try {
     const { user } = req.query;
@@ -399,12 +391,12 @@ exports.getPlayerGameModeData = async (req, res) => {
       });
     }
 
-    // Record session on blockchain
-    recordBlockchainSession(player, "gamemode");
+    const blockchainResult = await recordBlockchainSession(player, "gamemode");
 
     res.json({ 
       success: true, 
-      data: player.playerGameModeData 
+      data: player.playerGameModeData,
+      blockchain: blockchainResult // NEW
     });
   } catch (err) {
     console.error("❌ Error getting player game mode data:", err);
@@ -412,7 +404,7 @@ exports.getPlayerGameModeData = async (req, res) => {
   }
 };
 
-// ========== GET: PLAYER VEHICLE DATA (WITH BLOCKCHAIN) ==========
+// ========== GET: PLAYER VEHICLE DATA (WITH BLOCKCHAIN) - UPDATED ==========
 exports.getPlayerVehicleData = async (req, res) => {
   try {
     const { user } = req.query;
@@ -433,12 +425,12 @@ exports.getPlayerVehicleData = async (req, res) => {
       });
     }
 
-    // Record session on blockchain
-    recordBlockchainSession(player, "vehicle");
+    const blockchainResult = await recordBlockchainSession(player, "vehicle");
 
     res.json({ 
       success: true, 
-      data: player.playerVehicleData 
+      data: player.playerVehicleData,
+      blockchain: blockchainResult // NEW
     });
   } catch (err) {
     console.error("❌ Error getting player vehicle data:", err);
@@ -446,7 +438,7 @@ exports.getPlayerVehicleData = async (req, res) => {
   }
 };
 
-// ========== POST: UPDATE ALL PLAYER DATA (WITH BLOCKCHAIN) ==========
+// ========== POST: UPDATE ALL PLAYER DATA (WITH BLOCKCHAIN) - UPDATED ==========
 exports.updateAllPlayerData = async (req, res) => {
   try {
     const { user } = req.query;
@@ -459,7 +451,6 @@ exports.updateAllPlayerData = async (req, res) => {
       });
     }
 
-    // Remove system fields
     delete updateData._id;
     delete updateData.__v;
     delete updateData.createdAt;
@@ -489,34 +480,36 @@ exports.updateAllPlayerData = async (req, res) => {
     player.lastUpdated = new Date();
     await player.save();
 
-    // Record blockchain changes asynchronously
-    
+    // NEW: Collect all blockchain results
+    const blockchainResults = {};
+
     // Currency change
     const newCurrency = player.userGameData.currency;
     if (newCurrency !== oldCurrency) {
-      recordCurrencyTransaction(player, oldCurrency, newCurrency);
+      blockchainResults.currency = await recordCurrencyTransaction(player, oldCurrency, newCurrency);
     }
 
     // Vehicle switch
     const newVehicleIndex = player.playerVehicleData.selectedPlayerCarIndex;
     if (newVehicleIndex !== oldVehicleIndex) {
-      recordVehicleSwitch(player, newVehicleIndex);
+      blockchainResults.vehicle = await recordVehicleSwitch(player, newVehicleIndex);
     }
 
     // Achievement unlock
     const newAchievement = player.campaignData?.Achieved1000M;
     if (newAchievement && !oldAchievement) {
-      recordAchievementUnlock(player, "ACHIEVED_1000M");
+      blockchainResults.achievement = await recordAchievementUnlock(player, "ACHIEVED_1000M");
     }
 
-    // Score submission (if any score changed)
+    // Score submission
     if (updateData.playerGameModeData) {
-      recordScoreSubmission(player, player.playerGameModeData);
+      blockchainResults.score = await recordScoreSubmission(player, player.playerGameModeData);
     }
 
     res.json({ 
       success: true, 
-      data: sanitizePlayerForClient(player) 
+      data: sanitizePlayerForClient(player),
+      blockchain: blockchainResults // NEW: Return all blockchain results
     });
   } catch (err) {
     console.error("❌ Error updating all player data:", err);
@@ -560,7 +553,7 @@ exports.updatePrivyData = async (req, res) => {
   }
 };
 
-// ========== POST: UPDATE USER GAME DATA (WITH BLOCKCHAIN) ==========
+// ========== POST: UPDATE USER GAME DATA (WITH BLOCKCHAIN) - UPDATED ==========
 exports.updateUserGameData = async (req, res) => {
   try {
     const { user } = req.query;
@@ -582,18 +575,16 @@ exports.updateUserGameData = async (req, res) => {
       });
     }
 
-    // Ensure float for totalPlayedTime
     if (updateData.totalPlayedTime !== undefined) {
       updateData.totalPlayedTime = parseFloat(updateData.totalPlayedTime);
     }
 
-    // Check currency change
     const oldCurrency = player.userGameData.currency;
     const newCurrency = updateData.currency !== undefined ? updateData.currency : oldCurrency;
 
+    let blockchainResult = null;
     if (newCurrency !== oldCurrency) {
-      // Record currency transaction on blockchain
-      recordCurrencyTransaction(player, oldCurrency, newCurrency);
+      blockchainResult = await recordCurrencyTransaction(player, oldCurrency, newCurrency);
     }
 
     Object.assign(player.userGameData, updateData);
@@ -602,7 +593,8 @@ exports.updateUserGameData = async (req, res) => {
 
     res.json({ 
       success: true, 
-      data: player.userGameData 
+      data: player.userGameData,
+      blockchain: blockchainResult // NEW
     });
   } catch (err) {
     console.error("❌ Error updating user game data:", err);
@@ -610,7 +602,7 @@ exports.updateUserGameData = async (req, res) => {
   }
 };
 
-// ========== POST: UPDATE PLAYER GAME MODE DATA (WITH BLOCKCHAIN) ==========
+// ========== POST: UPDATE PLAYER GAME MODE DATA (WITH BLOCKCHAIN) - UPDATED ==========
 exports.updatePlayerGameModeData = async (req, res) => {
   try {
     const { user } = req.query;
@@ -632,7 +624,6 @@ exports.updatePlayerGameModeData = async (req, res) => {
       });
     }
 
-    // Check if any score improved
     const oldScores = { ...player.playerGameModeData };
     Object.assign(player.playerGameModeData, updateData);
 
@@ -642,9 +633,9 @@ exports.updatePlayerGameModeData = async (req, res) => {
       (updateData.bestScoreTimeAttack && updateData.bestScoreTimeAttack > oldScores.bestScoreTimeAttack) ||
       (updateData.bestScoreBomb && updateData.bestScoreBomb > oldScores.bestScoreBomb);
 
+    let blockchainResult = null;
     if (scoresChanged) {
-      // Record score on blockchain
-      recordScoreSubmission(player, player.playerGameModeData);
+      blockchainResult = await recordScoreSubmission(player, player.playerGameModeData);
     }
 
     player.lastUpdated = new Date();
@@ -652,7 +643,8 @@ exports.updatePlayerGameModeData = async (req, res) => {
 
     res.json({ 
       success: true, 
-      data: player.playerGameModeData 
+      data: player.playerGameModeData,
+      blockchain: blockchainResult // NEW
     });
   } catch (err) {
     console.error("❌ Error updating player game mode data:", err);
@@ -660,7 +652,7 @@ exports.updatePlayerGameModeData = async (req, res) => {
   }
 };
 
-// ========== POST: UPDATE PLAYER VEHICLE DATA (WITH BLOCKCHAIN) ==========
+// ========== POST: UPDATE PLAYER VEHICLE DATA (WITH BLOCKCHAIN) - UPDATED ==========
 exports.updatePlayerVehicleData = async (req, res) => {
   try {
     const { user } = req.query;
@@ -682,13 +674,12 @@ exports.updatePlayerVehicleData = async (req, res) => {
       });
     }
 
-    // Check if vehicle is being switched
     const oldVehicleIndex = player.playerVehicleData.selectedPlayerCarIndex;
     const newVehicleIndex = updateData.selectedPlayerCarIndex;
 
+    let blockchainResult = null;
     if (newVehicleIndex !== undefined && newVehicleIndex !== oldVehicleIndex) {
-      // Record vehicle switch on blockchain
-      recordVehicleSwitch(player, newVehicleIndex);
+      blockchainResult = await recordVehicleSwitch(player, newVehicleIndex);
     }
 
     Object.assign(player.playerVehicleData, updateData);
@@ -697,7 +688,8 @@ exports.updatePlayerVehicleData = async (req, res) => {
 
     res.json({ 
       success: true, 
-      data: player.playerVehicleData 
+      data: player.playerVehicleData,
+      blockchain: blockchainResult // NEW
     });
   } catch (err) {
     console.error("❌ Error updating player vehicle data:", err);
