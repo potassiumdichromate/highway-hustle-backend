@@ -17,6 +17,7 @@ const {
   updatePlayerGameModeData,
   updatePlayerVehicleData,
   recordPrivyLogin,
+  recordAutoLogin,
 
   // Campaign & Utilities
   checkUserAchievement,
@@ -69,6 +70,7 @@ router.post("/player/game", updateUserGameData);
 router.post("/player/gamemode", updatePlayerGameModeData);
 router.post("/player/vehicle", updatePlayerVehicleData);
 router.post("/player/login", recordPrivyLogin);
+router.post("/player/login/auto", recordAutoLogin);
 
 // ========== CAMPAIGN & GALXE ==========
 router.get("/check-user-achievement", checkUserAchievement);

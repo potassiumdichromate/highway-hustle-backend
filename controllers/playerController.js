@@ -4,6 +4,7 @@ const vehicleBlockchainService = require("../services/vehicleBlockchainService")
 const missionBlockchainService = require("../services/missionBlockchainService");
 const scoreBlockchainService = require("../services/scoreBlockchainService");
 const economyBlockchainService = require("../services/economyBlockchainService");
+const jwt = require("jsonwebtoken");
 
 // ========== HELPER: Find User by Any Privy Field ==========
 const findUserByIdentifier = async (identifier) => {
@@ -273,6 +274,57 @@ exports.recordPrivyLogin = async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Error recording privy login:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// ========== POST: RECORD AUTO LOGIN (BROWSER JWT) ==========
+exports.recordAutoLogin = async (req, res) => {
+  try {
+    const { jwt: token, source } = req.body;
+    
+    if (source !== "browser") {
+      return res.status(401).json({ success: false, message: "invalid request" });
+    }
+
+    if (!token) {
+      return res.status(400).json({ success: false, message: "missing jwt token" });
+    }
+
+    const secret = process.env.BROWSER_JWT_SECRET || 'dev-secret-change-me';
+    let decodedData;
+    try {
+      decodedData = jwt.verify(token, secret, { algorithms: ['HS256'] });
+    } catch (e) {
+      return res.status(401).json({ success: false, message: "invalid token" });
+    }
+
+    const walletFromJwt = normalizeIdentifier(decodedData?.walletAddress);
+    if (!walletFromJwt) {
+      return res.status(400).json({ success: false, message: "invalid walletAddress in token" });
+    }
+
+    let player = await findUserByIdentifier(walletFromJwt);
+
+    if (!player) {
+      player = await createDefaultPlayer(walletFromJwt);
+      console.log(`🆕 New player created during auto login for: ${walletFromJwt}`);
+    }
+
+    if (req.body.privyMetaData) {
+      applyPrivyMetaData(player, req.body.privyMetaData);
+    } else {
+      player.lastUpdated = new Date();
+    }
+    
+    await player.save();
+
+    res.json({
+      success: true,
+      data: sanitizePlayerForClient(player)
+    });
+  } catch (err) {
+    console.error("❌ Error recording auto login:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 };
