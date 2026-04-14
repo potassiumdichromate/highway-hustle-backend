@@ -20,6 +20,7 @@ const {
   recordAutoLogin,
 
   // Campaign & Utilities
+  createLeaderboardCommentPing,
   checkUserAchievement,
   getLeaderboard,
   getAllUsers,
@@ -80,6 +81,7 @@ router.get("/check-gate-user-achievement", checkGateUserAchievement);
 // ========== UTILITIES ==========
 router.get("/leaderboard", getLeaderboard);
 router.get("/leaderboard/gate-wallet", getGateWalletLeaderboard);
+router.post("/leaderboard/comment-ping", createLeaderboardCommentPing);
 router.get("/users", getAllUsers);
 
 // ========== SESSION BLOCKCHAIN ==========

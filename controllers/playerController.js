@@ -4,6 +4,7 @@ const vehicleBlockchainService = require("../services/vehicleBlockchainService")
 const missionBlockchainService = require("../services/missionBlockchainService");
 const scoreBlockchainService = require("../services/scoreBlockchainService");
 const economyBlockchainService = require("../services/economyBlockchainService");
+const { sendLeaderboardCommentPing } = require("../services/zerogComputeService");
 const jwt = require("jsonwebtoken");
 
 // ========== HELPER: Find User by Any Privy Field ==========
@@ -281,20 +282,20 @@ exports.recordPrivyLogin = async (req, res) => {
 // ========== POST: RECORD AUTO LOGIN (BROWSER JWT) ==========
 exports.recordAutoLogin = async (req, res) => {
   try {
-    const { jwt: token, source } = req.body;
+    const { jwt: browserToken, source } = req.body;
     
     if (source !== "browser") {
       return res.status(401).json({ success: false, message: "invalid request" });
     }
 
-    if (!token) {
+    if (!browserToken) {
       return res.status(400).json({ success: false, message: "missing jwt token" });
     }
 
     const secret = process.env.BROWSER_JWT_SECRET || 'dev-secret-change-me';
     let decodedData;
     try {
-      decodedData = jwt.verify(token, secret, { algorithms: ['HS256'] });
+      decodedData = jwt.verify(browserToken, secret, { algorithms: ['HS256'] });
     } catch (e) {
       return res.status(401).json({ success: false, message: "invalid token" });
     }
@@ -929,6 +930,36 @@ exports.getGateWalletLeaderboard = async (req, res) => {
     console.error("❌ Error getting gate wallet leaderboard:", err);
     res.status(500).json({ success: false, error: err.message });
   }
+};
+
+exports.createLeaderboardCommentPing = async (req, res) => {
+  const currentPlayer = req.body?.currentPlayer;
+  const topPlayer = req.body?.topPlayer;
+  const leaderboardType = req.body?.leaderboardType || 'global';
+
+  if (!currentPlayer || typeof currentPlayer !== 'object') {
+    return res.status(400).json({ success: false, error: "Missing currentPlayer" });
+  }
+
+  if (!topPlayer || typeof topPlayer !== 'object') {
+    return res.status(400).json({ success: false, error: "Missing topPlayer" });
+  }
+
+  console.log("[0g-compute] leaderboard_comment_ping.accepted", {
+    leaderboardType,
+    currentPlayerId: currentPlayer?._id ? String(currentPlayer._id) : undefined,
+    topPlayerId: topPlayer?._id ? String(topPlayer._id) : undefined,
+  });
+
+  setImmediate(() => {
+    void sendLeaderboardCommentPing({
+      currentPlayer,
+      topPlayer,
+      leaderboardType,
+    });
+  });
+
+  return res.status(202).json({ success: true, accepted: true });
 };
 
 // ========== SESSION BLOCKCHAIN ENDPOINTS ==========
