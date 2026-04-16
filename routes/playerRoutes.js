@@ -21,6 +21,7 @@ const {
 
   // Campaign & Utilities
   createLeaderboardCommentPing,
+  getLeaderboardAiComment,
   checkUserAchievement,
   getLeaderboard,
   getAllUsers,
@@ -82,6 +83,7 @@ router.get("/check-gate-user-achievement", checkGateUserAchievement);
 router.get("/leaderboard", getLeaderboard);
 router.get("/leaderboard/gate-wallet", getGateWalletLeaderboard);
 router.post("/leaderboard/comment-ping", createLeaderboardCommentPing);
+router.get("/leaderboard/ai-comment", getLeaderboardAiComment);
 router.get("/users", getAllUsers);
 
 // ========== SESSION BLOCKCHAIN ==========

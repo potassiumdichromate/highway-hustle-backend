@@ -101,36 +101,23 @@ const sendLeaderboardCommentPing = async ({ currentPlayer, topPlayer, leaderboar
     });
 
     if (!response.ok) {
-      console.warn("[0g-compute] leaderboard_comment_ping.failed", {
-        status: response.status,
-        leaderboardType,
-        currentPlayer: currentSnapshot.playerName,
-        topPlayer: topSnapshot.playerName,
-      });
       return;
     }
 
-    const payload = await response.json().catch(() => null);
-    const comment = payload?.choices?.[0]?.message?.content?.trim();
+    await response.json().catch(() => null);
 
-    console.log("[0g-compute] leaderboard_comment.generated", {
+    console.log("[0g-compute] leaderboard_comment.inference_complete", {
+      status: response.status,
+      model: config.model,
       leaderboardType,
-      currentPlayer: currentSnapshot.playerName,
-      currentCurrency: currentSnapshot.currency,
-      topPlayer: topSnapshot.playerName,
-      topCurrency: topSnapshot.currency,
-      comment: comment || "[empty response]",
     });
   } catch (error) {
-    console.warn("[0g-compute] leaderboard_comment_ping.failed", {
-      error: error.message,
-      leaderboardType,
-      currentPlayer: currentSnapshot.playerName,
-      topPlayer: topSnapshot.playerName,
-    });
+    // Swallow silently
   }
 };
 
 module.exports = {
   sendLeaderboardCommentPing,
+  publicPlayerSnapshot,
+  compactLeaderboardPlayer,
 };

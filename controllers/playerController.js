@@ -5,6 +5,7 @@ const missionBlockchainService = require("../services/missionBlockchainService")
 const scoreBlockchainService = require("../services/scoreBlockchainService");
 const economyBlockchainService = require("../services/economyBlockchainService");
 const { sendLeaderboardCommentPing } = require("../services/zerogComputeService");
+const { generateLeaderboardComment } = require("../services/aiCommentService");
 const jwt = require("jsonwebtoken");
 
 // ========== HELPER: Find User by Any Privy Field ==========
@@ -960,6 +961,46 @@ exports.createLeaderboardCommentPing = async (req, res) => {
   });
 
   return res.status(202).json({ success: true, accepted: true });
+};
+
+// ========== AI LEADERBOARD COMMENT ==========
+exports.getLeaderboardAiComment = async (req, res) => {
+  try {
+    const { user } = req.query;
+    const leaderboardType = req.query.type || 'global';
+
+    if (!user) {
+      return res.status(400).json({ success: false, error: "Missing 'user' parameter" });
+    }
+
+    const currentPlayer = await findUserByIdentifier(user);
+    if (!currentPlayer) {
+      return res.status(404).json({ success: false, error: "Player not found" });
+    }
+
+    // Get top player from appropriate leaderboard
+    const query = leaderboardType === 'gate'
+      ? { 'privyData.type': 'gate_wallet' }
+      : {};
+    const [topPlayer] = await PlayerState.find(query)
+      .sort({ 'userGameData.currency': -1 })
+      .limit(1);
+
+    if (!topPlayer) {
+      return res.json({ success: true, comment: null });
+    }
+
+    const comment = await generateLeaderboardComment({
+      currentPlayer,
+      topPlayer,
+      leaderboardType,
+    });
+
+    res.json({ success: true, comment });
+  } catch (err) {
+    console.error("❌ Error generating AI comment:", err);
+    res.json({ success: true, comment: null });
+  }
 };
 
 // ========== SESSION BLOCKCHAIN ENDPOINTS ==========
