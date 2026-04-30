@@ -6,6 +6,7 @@ const scoreBlockchainService = require("../services/scoreBlockchainService");
 const economyBlockchainService = require("../services/economyBlockchainService");
 const { sendLeaderboardCommentPing } = require("../services/zerogComputeService");
 const { generateLeaderboardComment } = require("../services/aiCommentService");
+const zerogDAService = require("../services/zerogDAService");
 const jwt = require("jsonwebtoken");
 
 // ========== HELPER: Find User by Any Privy Field ==========
@@ -136,6 +137,37 @@ const sanitizePlayerForClient = (player) => {
   if (!player) return null;
   const sanitized = player.toObject ? player.toObject() : { ...player };
   return sanitized;
+};
+
+// ========== 0G DA: SAVE SNAPSHOT AFTER SIGNIFICANT EVENTS ==========
+// Fire-and-forget: runs async, never blocks the API response.
+// Persists rootHash + txHash in the player's MongoDB record.
+const saveDASnapshot = (player, trigger) => {
+  const identifier =
+    player.privyData?.walletAddress ||
+    player.privyData?.discord ||
+    player.privyData?.telegram ||
+    player.privyData?.email ||
+    String(player._id);
+
+  setImmediate(async () => {
+    try {
+      const result = await zerogDAService.uploadPlayerSnapshot(identifier, player.toObject ? player.toObject() : player);
+      if (result) {
+        await PlayerState.findByIdAndUpdate(player._id, {
+          daSnapshot: {
+            rootHash: result.rootHash,
+            txHash: result.txHash,
+            txSeq: result.txSeq,
+            snapshotAt: new Date(),
+            trigger,
+          },
+        });
+      }
+    } catch (err) {
+      console.warn(`[0g-da] Background snapshot error: ${err.message}`);
+    }
+  });
 };
 
 // ========== BLOCKCHAIN RESILIENCE WRAPPER ==========
@@ -567,6 +599,8 @@ exports.updateAllPlayerData = async (req, res) => {
     const newAchievement = player.campaignData?.Achieved1000M;
     if (newAchievement && !oldAchievement) {
       blockchainResults.achievement = await safeBlockchainCall(() => recordAchievementUnlock(player, "ACHIEVED_1000M"));
+      // 0G DA: snapshot on achievement unlock
+      saveDASnapshot(player, 'achievement');
     }
 
     // Score submission
@@ -709,6 +743,9 @@ exports.updatePlayerGameModeData = async (req, res) => {
 
     player.lastUpdated = new Date();
     await player.save();
+
+    // 0G DA: snapshot whenever a new best score is achieved
+    if (scoresChanged) saveDASnapshot(player, 'score');
 
     res.json({
       success: true,
@@ -1262,4 +1299,66 @@ exports.getEconomyHealth = async (req, res) => {
     console.error("❌ Error checking economy health:", err);
     res.status(500).json({ healthy: false, error: err.message });
   }
+};
+
+// ========== 0G DA ENDPOINTS ==========
+
+// GET /api/da/snapshot?user=<identifier>
+// Returns the latest DA snapshot reference stored in the player's record
+exports.getDASnapshot = async (req, res) => {
+  try {
+    const { user } = req.query;
+    if (!user) return res.status(400).json({ success: false, error: "Missing 'user' parameter" });
+
+    const player = await findUserByIdentifier(user);
+    if (!player) return res.status(404).json({ success: false, error: "Player not found" });
+
+    const snap = player.daSnapshot;
+    if (!snap?.rootHash) {
+      return res.json({ success: true, snapshot: null, message: "No DA snapshot yet for this player" });
+    }
+
+    res.json({
+      success: true,
+      snapshot: {
+        rootHash: snap.rootHash,
+        txHash: snap.txHash,
+        txSeq: snap.txSeq,
+        snapshotAt: snap.snapshotAt,
+        trigger: snap.trigger,
+        explorerUrl: `https://chainscan.0g.ai/tx/${snap.txHash}`,
+      },
+    });
+  } catch (err) {
+    console.error("❌ Error getting DA snapshot:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// GET /api/da/verify?user=<identifier>
+// Downloads and verifies the player's snapshot from 0G DA
+exports.verifyDASnapshot = async (req, res) => {
+  try {
+    const { user } = req.query;
+    if (!user) return res.status(400).json({ success: false, error: "Missing 'user' parameter" });
+
+    const player = await findUserByIdentifier(user);
+    if (!player) return res.status(404).json({ success: false, error: "Player not found" });
+
+    const rootHash = player.daSnapshot?.rootHash;
+    if (!rootHash) {
+      return res.json({ success: true, verified: false, message: "No DA snapshot exists for this player" });
+    }
+
+    const result = await zerogDAService.verifyPlayerSnapshot(rootHash);
+    res.json({ success: true, ...result, rootHash });
+  } catch (err) {
+    console.error("❌ Error verifying DA snapshot:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// GET /api/da/health
+exports.getDAHealth = (req, res) => {
+  res.json({ success: true, da: zerogDAService.healthCheck() });
 };

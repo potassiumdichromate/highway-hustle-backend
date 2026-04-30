@@ -54,7 +54,12 @@ const {
   getBlockchainEconomy,
   getBlockchainStreak,
   getEconomyStats,
-  getEconomyHealth
+  getEconomyHealth,
+
+  // 0G DA Endpoints
+  getDASnapshot,
+  verifyDASnapshot,
+  getDAHealth,
 
 } = require("../controllers/playerController");
 
@@ -115,5 +120,10 @@ router.get("/blockchain/economy", getBlockchainEconomy);
 router.get("/blockchain/streak", getBlockchainStreak);
 router.get("/blockchain/economy-stats", getEconomyStats);
 router.get("/blockchain/economy-health", getEconomyHealth);
+
+// ========== 0G DA ==========
+router.get("/da/snapshot", getDASnapshot);
+router.get("/da/verify", verifyDASnapshot);
+router.get("/da/health", getDAHealth);
 
 module.exports = router;

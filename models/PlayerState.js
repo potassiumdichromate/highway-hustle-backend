@@ -46,6 +46,15 @@ const PlayerStateSchema = new mongoose.Schema({
     Achieved1000M: { type: Boolean, default: false }
   },
 
+  // ========== 0G DA SNAPSHOT ==========
+  daSnapshot: {
+    rootHash: { type: String },
+    txHash: { type: String },
+    txSeq: { type: Number },
+    snapshotAt: { type: Date },
+    trigger: { type: String }  // 'score' | 'achievement' | 'session'
+  },
+
   lastUpdated: { type: Date, default: Date.now }
 }, {
   timestamps: true

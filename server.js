@@ -70,6 +70,15 @@ mongoose.connect(process.env.MONGO_URI, {
   console.log("⚠️  Backend running without MongoDB. Blockchain features still work!");
 });
 
+// ========== 0G DA HEALTH CHECK ON STARTUP ==========
+const zerogDAService = require("./services/zerogDAService");
+const daStatus = zerogDAService.healthCheck();
+if (daStatus.enabled) {
+  console.log(`✅ 0G DA: enabled | network: ${daStatus.network} | indexer: ${daStatus.indexerRpc}`);
+} else {
+  console.log(`⚠️  0G DA: disabled (set ZEROG_DA_PRIVATE_KEY to enable player memory snapshots)`);
+}
+
 // ========== INITIALIZE ALL BLOCKCHAIN SERVICES ON STARTUP ==========
 const blockchainService = require("./services/blockchainService");
 const vehicleBlockchainService = require("./services/vehicleBlockchainService");
