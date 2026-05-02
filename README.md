@@ -441,11 +441,6 @@ MIT
 
 ## 👤 Author
 
-**Sidhanth (Potassium)**
-- CTO @ Kult Games
-- Twitter: [@6amguy](https://twitter.com/6amguy)
-- Telegram: [@Sidmahtoo](https://t.me/Sidmahtoo)
 
----
 
 Built with ❤️ for the Highway Hustle Web3 racing community
