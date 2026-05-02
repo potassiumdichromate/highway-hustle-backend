@@ -12,7 +12,6 @@ Production-ready backend for Highway Hustle Web3 racing game with categorized pl
 - **0G DA Integration**: Player memory snapshots through DA Event Gateway
 - **0G Compute Integration**: Leaderboard commentary generated via 0G first, Cloudflare fallback
 - **Production Ready**: Security headers, compression, error handling, graceful shutdown
-- **No Auth Middleware**: Direct access to all endpoints
 
 ## 0G Integration (Grant/Milestone)
 
