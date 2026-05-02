@@ -527,7 +527,7 @@ Retrieve response:
 
 ### What It Does
 
-When a player views the leaderboard, an AI model generates a short (under 30 words), playful commentary comparing that player's stats to the current #1. The 0G Compute network is called as a **parallel blind ping** alongside the real inference call — proving the game routes AI workloads through 0G's decentralised compute layer.
+When a player views the leaderboard, an AI model generates a short (under 30 words), playful commentary comparing that player's stats to the current #1. The backend now runs **0G Compute as the primary inference path** and only uses Cloudflare as a fallback if 0G fails, times out, or returns invalid output.
 
 ### Endpoint
 
@@ -540,19 +540,24 @@ When a player views the leaderboard, an AI model generates a short (under 30 wor
 
 ### Integration Pattern
 
-The 0G Compute call is **fire-and-forget** — it runs in the background via `setImmediate` and its result is never awaited or returned to the player. The actual AI commentary shown in-game comes from Cloudflare Workers AI (`@cf/meta/llama-3.1-8b-instruct-fast`) for latency reasons. The 0G call uses `max_tokens: 1` to keep costs minimal while still sending a real inference request through the compute network.
+`generateLeaderboardComment()` performs a direct 0G request first (OpenAI-compatible `/chat/completions`) with:
+- model: `zai-org/GLM-5-FP8`
+- `max_tokens: 150`
+- timeout: `8000ms`
+
+If that 0G request fails or returns unusable output, the service falls back to Cloudflare Workers AI.
 
 ```
 Player requests leaderboard AI comment
         │
-        ├── [immediately] Cloudflare Workers AI → llama-3.1-8b-instruct-fast
-        │         returns comment string to player (6s timeout)
+        ├── [primary] 0G Compute → zai-org/GLM-5-FP8
+        │         max_tokens: 150
+        │         timeout:    8s
+        │         returns comment to player on success
+        │         logs: model + latency + token usage + leaderboardType
         │
-        └── [setImmediate, non-blocking] 0G Compute blind ping
-                  model:      zai-org/GLM-5-FP8
-                  max_tokens: 1
-                  timeout:    8s
-                  logged:     [0g-compute] leaderboard_comment.inference_complete
+        └── [fallback only] Cloudflare Workers AI → llama-3.1-8b-instruct-fast
+                  used when 0G fails / times out / invalid output
 ```
 
 ### Prompt
@@ -576,35 +581,16 @@ User:
 
 ```javascript
 // aiCommentService.js
-const blindPingZerog = ({ currentPlayer, topPlayer, leaderboardType }) => {
-  fetch(`${zg.baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${zg.apiKey}` },
-    body: JSON.stringify({
-      model: 'zai-org/GLM-5-FP8',
-      messages: buildMessages({ currentPlayer, topPlayer, leaderboardType }),
-      max_tokens: 1,
-      stream: false,
-    }),
-    signal: AbortSignal.timeout(8000),
-  })
-  .then(res => {
-    console.log('[0g-compute] leaderboard_comment.inference_complete', {
-      status: res.status, model: 'zai-org/GLM-5-FP8', leaderboardType
-    });
-  })
-  .catch(() => {});  // never surfaces to the player
-};
-
 const generateLeaderboardComment = async ({ currentPlayer, topPlayer, leaderboardType }) => {
-  setImmediate(() => blindPingZerog({ currentPlayer, topPlayer, leaderboardType }));
-  return await generateComment({ currentPlayer, topPlayer, leaderboardType }); // Cloudflare
+  // 1) 0G Compute primary
+  // 2) Cloudflare fallback only if 0G fails/times out/invalid output
+  return { comment, inferenceSource };
 };
 ```
 
 **Triggered by:**
-- `GET /api/leaderboard/ai-comment?user=<id>&type=<global|gate>` — server-side leaderboard fetch
-- `POST /api/leaderboard/comment-ping` — client sends player objects directly (in-game trigger)
+- `GET /api/leaderboard/ai-comment?user=<id>&type=<global|gate>` — server-side leaderboard fetch and response source metadata.
+- `POST /api/leaderboard/comment-ping` — acknowledgement endpoint only (no compute inference).
 
 ---
 
@@ -704,11 +690,11 @@ GET /api/leaderboard/ai-comment?user=<identifier>
     │
     ├── MongoDB: fetch currentPlayer + topPlayer
     │
-    ├── [setImmediate] 0G Compute → GLM-5-FP8 blind ping (max_tokens: 1)
-    │                 logged on completion, never awaited
+    ├── [primary] 0G Compute → GLM-5-FP8 (max_tokens: 150, timeout: 8s)
+    │                 returns comment in normal conditions
     │
-    └── Cloudflare Workers AI → llama-3.1-8b-instruct-fast
-                  returns comment string to player
+    └── [fallback] Cloudflare Workers AI → only if 0G fails/invalid output
+                  response metadata marks source: "0g_compute" or "cloudflare_fallback"
 ```
 
 ---

@@ -21,8 +21,9 @@ class BlockchainService {
     this.wallet = null;
     this.contract = null;
     this.contractAddress = process.env.SESSION_CONTRACT_ADDRESS;
-    this.rpcUrl = process.env.ZEROG_RPC_URL || "https://evmrpc-mainnet.0g.ai";
-    this.chainId = parseInt(process.env.ZEROG_CHAIN_ID || "16600");
+    // Keep defaults aligned with the other 0G EVM services in this backend.
+    this.rpcUrl = process.env.ZEROG_RPC_URL || "https://evmrpc.0g.ai";
+    this.chainId = parseInt(process.env.ZEROG_CHAIN_ID || "16661");
   }
 
   // ========== INITIALIZATION ==========
