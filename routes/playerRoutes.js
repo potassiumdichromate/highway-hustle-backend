@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { verifyJwt } = require("../middleware/auth");
 const {
   // GET endpoints
   getAllPlayerData,
@@ -64,6 +65,14 @@ const {
 
 } = require("../controllers/playerController");
 
+// ========== POST ENDPOINTS ==========
+router.post("/player/login", recordPrivyLogin);
+router.post("/player/login/auto", recordAutoLogin);
+
+// ========== AUTH MIDDLEWARE ==========
+// Every API below requires JWT, except login endpoints above.
+router.use(verifyJwt);
+
 // ========== GET ENDPOINTS ==========
 router.get("/player/all", getAllPlayerData);
 router.get("/player/privy", getPrivyData);
@@ -77,8 +86,6 @@ router.post("/player/privy", updatePrivyData);
 router.post("/player/game", updateUserGameData);
 router.post("/player/gamemode", updatePlayerGameModeData);
 router.post("/player/vehicle", updatePlayerVehicleData);
-router.post("/player/login", recordPrivyLogin);
-router.post("/player/login/auto", recordAutoLogin);
 
 // ========== CAMPAIGN & GALXE ==========
 router.get("/check-user-achievement", checkUserAchievement);

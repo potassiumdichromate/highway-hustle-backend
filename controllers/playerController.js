@@ -88,6 +88,30 @@ const getIdentifierCandidate = (body) => {
   );
 };
 
+const issueBrowserJwt = (player, identifier) => {
+  const secret = process.env.BROWSER_JWT_SECRET || "dev-secret-change-me";
+  const expiresIn = process.env.BROWSER_JWT_EXPIRES_IN || "2h";
+
+  const walletAddress = normalizeIdentifier(player?.privyData?.walletAddress);
+  const subject = walletAddress || normalizeIdentifier(identifier) || "unknown";
+
+  const token = jwt.sign(
+    {
+      walletAddress: walletAddress || undefined,
+      identifier: subject,
+      source: "backend_login",
+    },
+    secret,
+    {
+      algorithm: "HS256",
+      expiresIn,
+      subject,
+    },
+  );
+
+  return { token, expiresIn };
+};
+
 const determinePrivyType = (meta = {}, walletCandidate) => {
   if (meta.type) return meta.type;
   if (meta.discordId) return 'discordId';
@@ -310,8 +334,15 @@ exports.recordPrivyLogin = async (req, res) => {
     applyPrivyMetaData(player, privyMetaData);
     await player.save();
 
+    const auth = issueBrowserJwt(player, identifier);
+
     res.json({
       success: true,
+      data: {
+        token: auth.token,
+        expiresIn: auth.expiresIn,
+        walletAddress: normalizeIdentifier(player?.privyData?.walletAddress) || null,
+      },
     });
   } catch (err) {
     console.error("❌ Error recording privy login:", err);
