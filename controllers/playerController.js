@@ -4,7 +4,6 @@ const vehicleBlockchainService = require("../services/vehicleBlockchainService")
 const missionBlockchainService = require("../services/missionBlockchainService");
 const scoreBlockchainService = require("../services/scoreBlockchainService");
 const economyBlockchainService = require("../services/economyBlockchainService");
-const { sendLeaderboardCommentPing } = require("../services/zerogComputeService");
 const { generateLeaderboardComment } = require("../services/aiCommentService");
 const zerogDAService = require("../services/zerogDAService");
 const jwt = require("jsonwebtoken");
@@ -991,21 +990,18 @@ exports.createLeaderboardCommentPing = async (req, res) => {
     return res.status(400).json({ success: false, error: "Missing topPlayer" });
   }
 
-  console.log("[0g-compute] leaderboard_comment_ping.accepted", {
+  console.log("[leaderboard] comment_ping.accepted (no inference here)", {
     leaderboardType,
     currentPlayerId: currentPlayer?._id ? String(currentPlayer._id) : undefined,
     topPlayerId: topPlayer?._id ? String(topPlayer._id) : undefined,
   });
 
-  setImmediate(() => {
-    void sendLeaderboardCommentPing({
-      currentPlayer,
-      topPlayer,
-      leaderboardType,
-    });
+  return res.status(202).json({
+    success: true,
+    accepted: true,
+    hint:
+      "Commentary runs on GET /api/leaderboard/ai-comment via 0G Compute (primary) with CF fallback.",
   });
-
-  return res.status(202).json({ success: true, accepted: true });
 };
 
 // ========== AI LEADERBOARD COMMENT ==========
@@ -1032,19 +1028,33 @@ exports.getLeaderboardAiComment = async (req, res) => {
       .limit(1);
 
     if (!topPlayer) {
-      return res.json({ success: true, comment: null });
+      return res.json({
+        success: true,
+        comment: null,
+        _meta: { source: null },
+      });
     }
 
-    const comment = await generateLeaderboardComment({
+    const { comment, inferenceSource } = await generateLeaderboardComment({
       currentPlayer,
       topPlayer,
       leaderboardType,
     });
 
-    res.json({ success: true, comment });
+    res.json({
+      success: true,
+      comment,
+      _meta: {
+        source: inferenceSource ?? null,
+      },
+    });
   } catch (err) {
     console.error("❌ Error generating AI comment:", err);
-    res.json({ success: true, comment: null });
+    res.json({
+      success: true,
+      comment: null,
+      _meta: { source: null },
+    });
   }
 };
 

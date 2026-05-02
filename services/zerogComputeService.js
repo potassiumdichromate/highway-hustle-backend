@@ -55,69 +55,8 @@ const getZerogConfig = () => ({
   timeoutMs: Number(process.env.ZEROG_TIMEOUT_MS || 8000),
 });
 
-const buildCommentMessages = ({ currentPlayer, topPlayer, leaderboardType }) => [
-  {
-    role: "system",
-    content:
-      "You are a Highway Hustle race commentator. Generate one short, playful comment for the current player by comparing their stats with the top leaderboard player. Keep it under 30 words. No markdown, no hashtags, no JSON.",
-  },
-  {
-    role: "user",
-    content: JSON.stringify({
-      leaderboardType,
-      currentPlayer: publicPlayerSnapshot(currentPlayer),
-      topPlayer: compactLeaderboardPlayer(topPlayer),
-    }),
-  },
-];
-
-const sendLeaderboardCommentPing = async ({ currentPlayer, topPlayer, leaderboardType }) => {
-  const config = getZerogConfig();
-  const currentSnapshot = publicPlayerSnapshot(currentPlayer);
-  const topSnapshot = compactLeaderboardPlayer(topPlayer);
-
-  if (!config.apiKey) {
-    console.warn("[0g-compute] leaderboard_comment_ping.skipped", {
-      reason: "missing_api_key",
-    });
-    return;
-  }
-
-  try {
-    const response = await fetch(`${config.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: config.model,
-        messages: buildCommentMessages({ currentPlayer, topPlayer, leaderboardType }),
-        temperature: 0.7,
-        max_tokens: 60,
-        stream: false,
-      }),
-      signal: AbortSignal.timeout(config.timeoutMs),
-    });
-
-    if (!response.ok) {
-      return;
-    }
-
-    await response.json().catch(() => null);
-
-    console.log("[0g-compute] leaderboard_comment.inference_complete", {
-      status: response.status,
-      model: config.model,
-      leaderboardType,
-    });
-  } catch (error) {
-    // Swallow silently
-  }
-};
-
 module.exports = {
-  sendLeaderboardCommentPing,
+  getZerogConfig,
   publicPlayerSnapshot,
   compactLeaderboardPlayer,
 };
