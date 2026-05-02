@@ -35,8 +35,8 @@ Express.js Backend (Node.js)
       │       └── EconomyManager
       │
       ├── 0G DA (mainnet) ─────────────── Data availability player memory snapshots
-      │       └── indexer-storage-turbo.0g.ai
-      │           (erasure coding · KZG commitments · Merkle rootHash)
+      │       └── da.clashofbots.xyz  (0G DA Event Gateway)
+      │           HTTP → BullMQ → gRPC DisperseBlob → { storageRoot, epoch, quorumId }
       │
       └── 0G Compute ──────────────────── AI inference ping (GLM-5-FP8)
               └── compute-network-1.integratenetwork.work
@@ -276,40 +276,77 @@ const safeBlockchainCall = async (fn, timeoutMs = 5000) => {
 
 ### What is 0G DA
 
-0G DA (Data Availability) is a decentralized layer that guarantees published data is available and verifiable by anyone. It uses **erasure coding** to split data into redundant shards distributed across many storage nodes, **KZG polynomial commitments** to cryptographically prove each shard is correct, and **VRF-based node selection** to randomly assign which nodes hold which shards — making data unavailability economically and cryptographically infeasible.
+0G DA (Data Availability) is a decentralized layer that guarantees published data blobs are available and verifiable by anyone. It works via a **Disperser service** (gRPC) that accepts raw byte blobs, applies **erasure coding** across distributed DA nodes, and uses **quorum signing** to confirm availability. Each submitted blob goes through:
 
-When data is published to 0G DA, the system returns a **Merkle root hash** — a deterministic content address. Any party can use this hash to download and verify the original data without trusting anyone, including the game server.
+1. `DisperseBlob` — blob submitted to disperser, returns a `request_id`
+2. `GetBlobStatus` — polled until status is `CONFIRMED` or `FINALIZED`, returns `{ storageRoot, epoch, quorumId }`
+3. `RetrieveBlob` — anyone can fetch the original blob using `{ storageRoot, epoch, quorumId }` — no trust in the original sender required
+
+### DA Infrastructure — 0G DA Event Gateway
+
+The game uses a dedicated **0G DA Event Gateway** (`zero_g_da_event_gateway`) deployed at:
+
+```
+https://da.clashofbots.xyz
+```
+
+This gateway was built specifically for Highway Hustle (and other games). It:
+- Accepts game events over a simple HTTP API
+- Batches them using **BullMQ + Redis**
+- Forwards batches to the **0G DA disperser via raw gRPC** (`@grpc/grpc-js` + `disperser.proto`)
+- Polls `GetBlobStatus` until the blob is `CONFIRMED`
+- Stores `{ storageRoot, epoch, quorumId }` in MongoDB for retrieval
+- Exposes a retrieve endpoint that calls `RetrieveBlob` gRPC and returns the original data
+
+The gateway is the correct Node.js integration pattern for 0G DA — there is no official JS DA SDK, so it uses raw gRPC with `disperser.proto` directly.
 
 ### How Highway Hustle Uses 0G DA
 
-At key milestone moments — a **new best score** or an **achievement unlock** — the player's full game state is serialized as a JSON blob and published to 0G DA. The returned `rootHash` is stored in the player's MongoDB record. This means:
+At two key milestone events — a **new best score** or an **achievement unlock** — the player's full game state is sent as an event to the gateway. The gateway disperses it to the 0G DA network. An `eventId` is generated and stored in the player's MongoDB record so the DA status and blob can be retrieved anytime.
 
-- Every score milestone has a **DA-backed, tamper-proof snapshot** of the player's state at that moment
-- Anyone — including the player, 0G verifiers, or future campaigns — can retrieve and verify that snapshot using only the `rootHash`, with no trust in the game server
-- The snapshot is a permanent public record of the player's gameplay history on the 0G network
+This means:
+- Every score milestone has a **DA-backed, quorum-signed record** of the player's state
+- Anyone can retrieve and verify the original blob using only `{ storageRoot, epoch, quorumId }` — directly from the 0G DA network, with no trust in the game server
+- The DA record is the player's permanent on-chain memory
 
-### Network
+### Gateway Architecture
 
-| Parameter | Value |
-|---|---|
-| Network | 0G Mainnet |
-| EVM RPC | `https://evmrpc.0g.ai` |
-| DA Indexer (Turbo) | `https://indexer-storage-turbo.0g.ai` |
-| Explorer | `https://chainscan.0g.ai` |
-| SDK | `@0gfoundation/0g-storage-ts-sdk` |
-| SDK Classes Used | `Indexer`, `MemData` |
+```
+Highway Hustle Backend
+        │
+        │  POST /v1/events
+        │  { game, event, eventId, data: { scores, currency, ... } }
+        ▼
+https://da.clashofbots.xyz  (0G DA Event Gateway)
+        │
+        ├── BullMQ queue (Redis)
+        │
+        └── Worker: submitBatchToDa(events)
+                │
+                │  gRPC  DisperseBlob({ data: Buffer.from(JSON.stringify(events)) })
+                ▼
+        0G DA Disperser node  (port 51001)
+                │
+                │  polls GetBlobStatus({ request_id }) until CONFIRMED
+                ▼
+        { storageRoot, epoch, quorumId }  ← stored in gateway MongoDB
+                │
+                │  gRPC  RetrieveBlob({ storageRoot, epoch, quorumId })
+                ▼
+        Original blob data returned to anyone who asks
+```
 
-### DA Snapshot Payload
+### DA Event Payload
 
-Every snapshot published to 0G DA is a structured JSON containing the player's complete game state at the moment of the milestone:
+Every event sent to the gateway contains the player's full game state:
 
 ```json
 {
-  "game": "highway-hustle",
-  "version": 1,
-  "identifier": "0xabc...def",
-  "timestamp": "2025-05-01T12:00:00.000Z",
-  "snapshot": {
+  "eventId": "uuid-generated-by-backend",
+  "game": "highwayHustle",
+  "event": "score.best",
+  "data": {
+    "identifier": "0xabc...def",
     "playerName": "Speedy",
     "currency": 45000,
     "totalPlayedTime": 3.75,
@@ -319,68 +356,65 @@ Every snapshot published to 0G DA is a structured JSON containing the player's c
       "bestScoreTimeAttack": 720,
       "bestScoreBomb": 540
     },
-    "vehicles": {
-      "selectedPlayerCarIndex": 4,
-      "JeepOwned": 1,
-      "VanOwned": 1,
-      "SierraOwned": 0,
-      "SedanOwned": 0,
-      "LamborghiniOwned": 1
-    },
-    "achievements": {
-      "Achieved1000M": true
-    }
+    "vehicles": { "selectedPlayerCarIndex": 4, "JeepOwned": 1, "LamborghiniOwned": 1 },
+    "achievements": { "Achieved1000M": true },
+    "recordedAt": "2025-05-01T12:00:00.000Z"
   }
 }
 ```
 
-### MongoDB Schema — daSnapshot Field
+Event names:
+- `score.best` — triggered when any game mode score is beaten
+- `achievement.unlock` — triggered when `Achieved1000M` is unlocked
 
-The `rootHash` and transaction reference returned by 0G DA are persisted in the player's MongoDB record:
+### MongoDB Schema — daSnapshot Field
 
 ```javascript
 // models/PlayerState.js
 daSnapshot: {
-  rootHash:   String,   // 0G DA Merkle root — content address of the DA blob
-  txHash:     String,   // 0G EVM transaction hash confirming the DA submission
-  txSeq:      Number,   // DA sequence number
-  snapshotAt: Date,     // Timestamp of when the snapshot was published
-  trigger:    String    // "score" | "achievement" — what event triggered the upload
+  eventId:     String,   // UUID generated by backend — used to poll gateway
+  daReference: String,   // DA reference string (set once confirmed)
+  daStatus:    String,   // 'submitted' | 'confirmed' | 'finalized' | 'failed'
+  daBlobInfo: {
+    storageRoot: String, // DA blob storage root (base64) — for RetrieveBlob
+    epoch:       Number, // DA epoch number
+    quorumId:    Number, // DA quorum ID
+  },
+  snapshotAt:  Date,
+  trigger:     String,   // 'score' | 'achievement'
 }
 ```
 
-### DA Upload Flow
+### DA Submit Flow
 
 ```
 Player achieves new best score
-            │
-            ▼
-  MongoDB updated (synchronous)
-  HTTP response returned to client ◄── player is NOT waiting for DA
-            │
-            ▼  setImmediate — runs after response is sent
-  zerogDAService.uploadPlayerSnapshot(identifier, playerState)
-            │
-            ├── JSON.stringify(snapshot) → Buffer → MemData
-            ├── new ethers.Wallet(ZEROG_DA_PRIVATE_KEY, provider)
-            ├── new Indexer('https://indexer-storage-turbo.0g.ai')
-            │
-            └── indexer.upload(memData, evmRpc, signer)
-                  [30-second timeout via Promise.race]
+          │
+          ▼
+MongoDB updated + HTTP response sent to player ◄── player is NOT waiting for DA
+          │
+          ▼  setImmediate (after response)
+saveDASnapshot(player, 'score')
+          │
+          ├── generate eventId = randomUUID()
+          │
+          └── POST https://da.clashofbots.xyz/v1/events
+                {
+                  eventId, game: 'highwayHustle',
+                  event: 'score.best',
+                  data: { scores, currency, vehicles, achievements, ... }
+                }
+                [10s timeout]
                         │
-                  0G DA network:
-                  • erasure-codes the blob into shards
-                  • distributes shards across DA nodes
-                  • KZG commitment proves each shard
-                  • EVM tx anchors the Merkle root on-chain
-                        │
-                        ▼
-                returns { rootHash, txHash, txSeq }
+                        ▼  202 Accepted — gateway queues it
+                { success: true, accepted: 1, queued: N }
                         │
                         ▼
-  PlayerState.findByIdAndUpdate(player._id, {
-    daSnapshot: { rootHash, txHash, txSeq, snapshotAt, trigger }
-  })
+          PlayerState.findByIdAndUpdate({ daSnapshot: { eventId, daStatus: 'submitted' } })
+
+          [Gateway processes async via BullMQ:]
+          gRPC DisperseBlob → polls GetBlobStatus → CONFIRMED
+          stores { storageRoot, epoch, quorumId } in gateway MongoDB
 ```
 
 ### Service Implementation
@@ -388,50 +422,51 @@ Player achieves new best score
 **File:** `services/zerogDAService.js`
 
 ```javascript
-const { Indexer, MemData } = require('@0gfoundation/0g-storage-ts-sdk');
-const { ethers } = require('ethers');
+const { randomUUID } = require('crypto');
 
-// Publish player state to 0G DA — returns { rootHash, txHash, txSeq } or null. Never throws.
-const uploadPlayerSnapshot = async (identifier, playerData) => {
-  const buffer  = Buffer.from(JSON.stringify(buildSnapshot(identifier, playerData)));
-  const memData = new MemData(buffer);                    // in-memory blob, no temp files
+// Submit game event to 0G DA gateway — returns { eventId } or null. Never throws.
+const submitPlayerEvent = async (eventName, identifier, playerData) => {
+  const eventId = randomUUID();  // we own this ID — stored in MongoDB for lookup
 
-  const provider = new ethers.JsonRpcProvider(config.evmRpc);
-  const signer   = new ethers.Wallet(config.privateKey, provider);
-  const indexer  = new Indexer(config.indexerRpc);        // connects to DA indexer node
-
-  const [result, err] = await withTimeout(
-    indexer.upload(memData, config.evmRpc, signer),
-    30_000,   // 30-second cap — upload silently skipped if DA is unreachable
-    'upload'
-  );
-
-  // result = { rootHash, txHash, txSeq }
-  return result;
+  const res = await fetch('https://da.clashofbots.xyz/v1/events', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${API_KEY}` },
+    body: JSON.stringify({
+      eventId,
+      game:  'highwayHustle',
+      event: eventName,          // 'score.best' | 'achievement.unlock'
+      data:  buildEventData(identifier, playerData),
+    }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  // gateway responds 202 — { success: true, accepted: 1, queued: N }
+  return { eventId };
 };
 
-// Retrieve and verify a snapshot from 0G DA by rootHash — trustless, no server needed.
-const verifyPlayerSnapshot = async (rootHash) => {
-  const indexer = new Indexer(config.indexerRpc);
-  const err = await withTimeout(
-    indexer.download(rootHash, tmpFilePath, true /* with proof */),
-    15_000,
-    'verify'
-  );
-  // returns { verified: true, data: { ...snapshotPayload } }
+// Poll gateway for latest DA status of an eventId
+const getEventStatus = async (eventId) => {
+  const res = await fetch(`https://da.clashofbots.xyz/v1/da/status/${eventId}`, ...);
+  // returns { status, daReference, daStatus, daBlobInfo: { storageRoot, epoch, quorumId } }
+};
+
+// Retrieve actual blob from 0G DA network via gateway
+const retrievePlayerEvent = async (eventId) => {
+  const res = await fetch(`https://da.clashofbots.xyz/v1/da/retrieve/${eventId}`, { method: 'POST', ... });
+  // gateway calls gRPC RetrieveBlob({ storageRoot, epoch, quorumId })
+  // returns decoded JSON of original event data
 };
 ```
 
 **Trigger points in** `controllers/playerController.js`:
 
 ```javascript
-// Fire-and-forget — player response is never delayed
 const saveDASnapshot = (player, trigger) => {
+  const eventName = trigger === 'achievement' ? 'achievement.unlock' : 'score.best';
   setImmediate(async () => {
-    const result = await zerogDAService.uploadPlayerSnapshot(identifier, player);
-    if (result) {
+    const result = await zerogDAService.submitPlayerEvent(eventName, identifier, player);
+    if (result?.eventId) {
       await PlayerState.findByIdAndUpdate(player._id, {
-        daSnapshot: { ...result, snapshotAt: new Date(), trigger }
+        daSnapshot: { eventId: result.eventId, daStatus: 'submitted', snapshotAt: new Date(), trigger }
       });
     }
   });
@@ -446,41 +481,45 @@ if (newAchievement && !oldAchievement) saveDASnapshot(player, 'achievement');
 
 ### Resilience
 
-- **Non-blocking:** `setImmediate` ensures the DA upload runs after the HTTP response is fully sent. The player never waits for DA.
-- **Timeout:** `Promise.race` caps uploads at 30 seconds and verifications at 15 seconds. If 0G DA is unreachable the call returns `null` silently.
-- **Never throws:** Both `uploadPlayerSnapshot` and `verifyPlayerSnapshot` catch all errors internally. The game backend cannot crash from a DA failure.
-- **Graceful disable:** If `ZEROG_DA_PRIVATE_KEY` is not set, the service logs one warning on startup and skips all uploads. Everything else continues normally.
+- **Non-blocking:** `setImmediate` — DA submit runs after HTTP response is fully sent. Player never waits.
+- **10s timeout:** If gateway is unreachable, returns `null` silently.
+- **Never throws:** All errors caught internally. Backend cannot crash from a DA failure.
+- **No extra env needed:** Gateway URL is hardcoded (`https://da.clashofbots.xyz`). Set `ZEROG_DA_API_KEY` if the gateway requires auth.
 
-### Verify a Snapshot (Trustless)
-
-Anyone with the `rootHash` can independently verify a player's claimed game state:
+### Check & Retrieve DA Data
 
 ```
-GET /api/da/verify?user=0xabc...def
+GET /api/da/snapshot?user=0xabc...   → eventId + stored daStatus from MongoDB
+GET /api/da/status?user=0xabc...     → live poll gateway for latest status + daBlobInfo
+GET /api/da/retrieve?user=0xabc...   → gateway calls RetrieveBlob gRPC, returns decoded data
+GET /api/da/health                   → gateway health check
 ```
 
-Response:
+Live status response (once confirmed):
 ```json
 {
   "success": true,
-  "verified": true,
-  "rootHash": "0x1a2b3c...",
-  "data": {
-    "game": "highway-hustle",
-    "version": 1,
-    "identifier": "0xabc...def",
-    "timestamp": "2025-05-01T12:00:00.000Z",
-    "snapshot": {
-      "playerName": "Speedy",
-      "currency": 45000,
-      "scores": { "bestScoreOneWay": 1200, "..." : "..." },
-      "achievements": { "Achieved1000M": true }
-    }
-  }
+  "eventId": "uuid...",
+  "status": "confirmed",
+  "daStatus": "CONFIRMED",
+  "daBlobInfo": { "storageRoot": "base64...", "epoch": 12, "quorumId": 0 }
 }
 ```
 
-This endpoint downloads the blob directly from the 0G DA network and returns its contents — the game server is not involved in the retrieval, making it fully trustless.
+Retrieve response:
+```json
+{
+  "success": true,
+  "retrieved": true,
+  "eventId": "uuid...",
+  "daBlobInfo": { "storageRoot": "...", "epoch": 12, "quorumId": 0 },
+  "data": {
+    "game": "highwayHustle",
+    "event": "score.best",
+    "data": { "identifier": "0x...", "scores": { "bestScoreOneWay": 1200 }, "..." }
+  }
+}
+```
 
 ---
 
@@ -605,10 +644,11 @@ POST /api/player/gamemode?user=<identifier>  { bestScoreOneWay: 1500 }
     ├── 0G EVM → ScoreManager.submitScore(identifier, address, mode, score, ...)
     │            [5s timeout]
     │
-    └── 0G DA → uploadPlayerSnapshot(identifier, fullPlayerState)
-                [setImmediate · 30s timeout]
-                → rootHash + txHash saved to player.daSnapshot
-                → verifiable on chainscan.0g.ai
+    └── 0G DA → POST https://da.clashofbots.xyz/v1/events
+                [setImmediate · 10s timeout · never blocks response]
+                → eventId saved to player.daSnapshot (daStatus: 'submitted')
+                → gateway: gRPC DisperseBlob → CONFIRMED
+                → daBlobInfo: { storageRoot, epoch, quorumId } stored
 ```
 
 ---
@@ -648,10 +688,11 @@ POST /api/player/all?user=<identifier>  { campaignData: { Achieved1000M: true } 
     ├── 0G EVM → MissionManager.unlockAchievement(identifier, address, "ACHIEVED_1000M")
     │            [5s timeout]
     │
-    └── 0G DA → uploadPlayerSnapshot(identifier, fullPlayerState)
-                trigger: "achievement"
-                [setImmediate · 30s timeout]
-                → DA blob published with achievement proof in snapshot
+    └── 0G DA → POST https://da.clashofbots.xyz/v1/events
+                { event: 'achievement.unlock', data: fullPlayerState }
+                [setImmediate · 10s timeout · never blocks response]
+                → eventId stored (daStatus: 'submitted')
+                → gateway disperses blob via gRPC; CONFIRMED daBlobInfo stored
 ```
 
 ---
@@ -678,36 +719,46 @@ GET /api/leaderboard/ai-comment?user=<identifier>
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/da/health` | DA config and network status |
-| `GET` | `/api/da/snapshot?user=<id>` | Latest DA snapshot reference for a player (rootHash, txHash, explorer link) |
-| `GET` | `/api/da/verify?user=<id>` | Retrieve and verify snapshot directly from 0G DA network |
+| `GET` | `/api/da/health` | Gateway health check — online status, mode, completed blobs |
+| `GET` | `/api/da/snapshot?user=<id>` | Stored eventId + daStatus from MongoDB (fast, no gateway call) |
+| `GET` | `/api/da/status?user=<id>` | Live poll of gateway for latest DA status + daBlobInfo |
+| `GET` | `/api/da/retrieve?user=<id>` | Gateway calls gRPC RetrieveBlob → returns decoded original blob |
 
 **Sample response — `/api/da/snapshot`:**
 ```json
 {
   "success": true,
-  "snapshot": {
-    "rootHash": "0x1a2b3c4d...",
-    "txHash": "0xdeadbeef...",
-    "txSeq": 42,
-    "snapshotAt": "2025-05-01T12:34:56.789Z",
-    "trigger": "score",
-    "explorerUrl": "https://chainscan.0g.ai/tx/0xdeadbeef..."
-  }
+  "eventId": "uuid-generated-by-backend",
+  "daStatus": "submitted",
+  "daBlobInfo": null,
+  "snapshotAt": "2025-05-01T12:34:56.789Z",
+  "trigger": "score",
+  "gatewayStatusUrl": "https://da.clashofbots.xyz/v1/da/status/uuid..."
 }
 ```
 
-**Sample response — `/api/da/verify`:**
+**Sample response — `/api/da/status` (once confirmed):**
 ```json
 {
   "success": true,
-  "verified": true,
-  "rootHash": "0x1a2b3c4d...",
+  "eventId": "uuid...",
+  "status": "confirmed",
+  "daStatus": "CONFIRMED",
+  "daBlobInfo": { "storageRoot": "base64...", "epoch": 12, "quorumId": 0 }
+}
+```
+
+**Sample response — `/api/da/retrieve`:**
+```json
+{
+  "success": true,
+  "retrieved": true,
+  "eventId": "uuid...",
+  "daBlobInfo": { "storageRoot": "...", "epoch": 12, "quorumId": 0 },
   "data": {
-    "game": "highway-hustle",
-    "identifier": "0xabc...def",
-    "timestamp": "2025-05-01T12:34:56.789Z",
-    "snapshot": { "currency": 45000, "scores": { "..." }, "achievements": { "..." } }
+    "game": "highwayHustle",
+    "event": "score.best",
+    "data": { "identifier": "0xabc...def", "scores": { "bestScoreOneWay": 1200 }, "..." }
   }
 }
 ```
@@ -754,9 +805,8 @@ MISSION_CONTRACT_ADDRESS=0x<address>
 ECONOMY_CONTRACT_ADDRESS=0x<address>
 
 # ── 0G DA (Data Availability) ───────────────────────────────────────────
-ZEROG_DA_PRIVATE_KEY=0x<wallet_private_key>   # pays for DA blob submissions
-ZEROG_DA_EVM_RPC=https://evmrpc.0g.ai         # optional — defaults to mainnet
-ZEROG_DA_INDEXER_RPC=https://indexer-storage-turbo.0g.ai  # optional — defaults to mainnet
+ZEROG_DA_GATEWAY_URL=https://da.clashofbots.xyz  # optional — this URL is hardcoded as fallback
+ZEROG_DA_API_KEY=<bearer_token>                  # gateway Bearer auth (omit if gateway is public)
 
 # ── 0G Compute ──────────────────────────────────────────────────────────
 ZEROG_API_KEY=<api_key>
@@ -776,8 +826,7 @@ ZEROG_TIMEOUT_MS=8000
 | EVM RPC | `https://evmrpc.0g.ai` |
 | Chain ID | `16661` |
 | Block Explorer | `https://chainscan.0g.ai` |
-| DA Indexer (Turbo) | `https://indexer-storage-turbo.0g.ai` |
-| DA Indexer (Standard) | `https://indexer-storage-standard.0g.ai` |
+| DA Event Gateway | `https://da.clashofbots.xyz` |
 | 0G Compute Proxy | `https://compute-network-1.integratenetwork.work/v1/proxy` |
 | Faucet (testnet) | `https://faucet.0g.ai` |
 
@@ -786,7 +835,7 @@ ZEROG_TIMEOUT_MS=8000
 | Package | Version | Purpose |
 |---|---|---|
 | `ethers` | `^6.9.0` | EVM provider, wallet, and smart contract interaction |
-| `@0gfoundation/0g-storage-ts-sdk` | latest | 0G DA — blob upload (`MemData`, `Indexer`), download and proof verification |
+| *(none — native `fetch`)* | — | 0G DA — HTTP calls to `da.clashofbots.xyz` gateway; no SDK needed |
 
 ---
 
@@ -795,5 +844,5 @@ ZEROG_TIMEOUT_MS=8000
 | 0G Product | What Highway Hustle Uses It For |
 |---|---|
 | **0G EVM** | 5 smart contracts deployed on chain ID 16661 record every session, score, vehicle switch, achievement, and currency transaction permanently on-chain. Players' on-chain history is immutable and trustlessly queryable. |
-| **0G DA** | Player game state is published to 0G DA as a verifiable JSON blob on every new best score and achievement unlock. The Merkle `rootHash` content-addresses the snapshot — anyone can retrieve and verify a player's claimed state from the DA network without trusting the game server. |
+| **0G DA** | Player game state is published to 0G DA on every new best score and achievement unlock via the `da.clashofbots.xyz` gateway. The gateway batches events and forwards them to the 0G DA disperser via gRPC (`DisperseBlob`). Each blob is confirmed with `{ storageRoot, epoch, quorumId }` — anyone can call `RetrieveBlob` to get the original data back without trusting the game server. |
 | **0G Compute** | Every leaderboard AI commentary request fires a parallel inference ping through the 0G Compute network (GLM-5-FP8). This proves Highway Hustle routes real AI workloads through decentralised compute infrastructure on every leaderboard interaction. |

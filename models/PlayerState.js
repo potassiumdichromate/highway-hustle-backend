@@ -47,12 +47,19 @@ const PlayerStateSchema = new mongoose.Schema({
   },
 
   // ========== 0G DA SNAPSHOT ==========
+  // Submitted via da.clashofbots.xyz (0G DA Event Gateway)
+  // Gateway forwards events to 0G DA disperser via gRPC (DisperseBlob)
   daSnapshot: {
-    rootHash: { type: String },
-    txHash: { type: String },
-    txSeq: { type: Number },
-    snapshotAt: { type: Date },
-    trigger: { type: String }  // 'score' | 'achievement' | 'session'
+    eventId:     { type: String },   // UUID we generated — used to poll status & retrieve
+    daReference: { type: String },   // DA reference string from gateway once confirmed
+    daStatus:    { type: String },   // 'submitted' | 'confirmed' | 'finalized' | 'failed'
+    daBlobInfo: {
+      storageRoot: { type: String }, // DA blob storage root (base64)
+      epoch:       { type: Number }, // DA epoch number
+      quorumId:    { type: Number }, // DA quorum ID
+    },
+    snapshotAt:  { type: Date },
+    trigger:     { type: String },   // 'score' | 'achievement'
   },
 
   lastUpdated: { type: Date, default: Date.now }

@@ -139,9 +139,11 @@ const sanitizePlayerForClient = (player) => {
   return sanitized;
 };
 
-// ========== 0G DA: SAVE SNAPSHOT AFTER SIGNIFICANT EVENTS ==========
-// Fire-and-forget: runs async, never blocks the API response.
-// Persists rootHash + txHash in the player's MongoDB record.
+// ========== 0G DA: SUBMIT PLAYER EVENT TO DA GATEWAY ==========
+// Fire-and-forget: runs after response is sent, never blocks the API.
+// Submits a game event to https://da.clashofbots.xyz (0G DA Event Gateway).
+// Gateway batches it and sends to 0G DA disperser via gRPC (DisperseBlob).
+// Persists eventId in MongoDB for later status polling and DA retrieval.
 const saveDASnapshot = (player, trigger) => {
   const identifier =
     player.privyData?.walletAddress ||
@@ -150,22 +152,28 @@ const saveDASnapshot = (player, trigger) => {
     player.privyData?.email ||
     String(player._id);
 
+  const eventName = trigger === 'achievement' ? 'achievement.unlock' : 'score.best';
+
   setImmediate(async () => {
     try {
-      const result = await zerogDAService.uploadPlayerSnapshot(identifier, player.toObject ? player.toObject() : player);
-      if (result) {
+      const result = await zerogDAService.submitPlayerEvent(
+        eventName,
+        identifier,
+        player.toObject ? player.toObject() : player
+      );
+      if (result?.eventId) {
         await PlayerState.findByIdAndUpdate(player._id, {
           daSnapshot: {
-            rootHash: result.rootHash,
-            txHash: result.txHash,
-            txSeq: result.txSeq,
+            eventId:    result.eventId,
+            daStatus:   'submitted',
             snapshotAt: new Date(),
             trigger,
           },
         });
+        console.log(`[0g-da] eventId ${result.eventId} saved for player ${identifier}`);
       }
     } catch (err) {
-      console.warn(`[0g-da] Background snapshot error: ${err.message}`);
+      console.warn(`[0g-da] Background event error: ${err.message}`);
     }
   });
 };
@@ -1304,7 +1312,7 @@ exports.getEconomyHealth = async (req, res) => {
 // ========== 0G DA ENDPOINTS ==========
 
 // GET /api/da/snapshot?user=<identifier>
-// Returns the latest DA snapshot reference stored in the player's record
+// Returns the eventId + DA status stored in the player's MongoDB record
 exports.getDASnapshot = async (req, res) => {
   try {
     const { user } = req.query;
@@ -1314,19 +1322,20 @@ exports.getDASnapshot = async (req, res) => {
     if (!player) return res.status(404).json({ success: false, error: "Player not found" });
 
     const snap = player.daSnapshot;
-    if (!snap?.rootHash) {
-      return res.json({ success: true, snapshot: null, message: "No DA snapshot yet for this player" });
+    if (!snap?.eventId) {
+      return res.json({ success: true, snapshot: null, message: "No DA event submitted yet for this player" });
     }
 
     res.json({
       success: true,
       snapshot: {
-        rootHash: snap.rootHash,
-        txHash: snap.txHash,
-        txSeq: snap.txSeq,
-        snapshotAt: snap.snapshotAt,
-        trigger: snap.trigger,
-        explorerUrl: `https://chainscan.0g.ai/tx/${snap.txHash}`,
+        eventId:     snap.eventId,
+        daStatus:    snap.daStatus,
+        daReference: snap.daReference || null,
+        daBlobInfo:  snap.daBlobInfo  || null,
+        snapshotAt:  snap.snapshotAt,
+        trigger:     snap.trigger,
+        gatewayStatusUrl: `https://da.clashofbots.xyz/v1/da/status/${snap.eventId}`,
       },
     });
   } catch (err) {
@@ -1335,9 +1344,9 @@ exports.getDASnapshot = async (req, res) => {
   }
 };
 
-// GET /api/da/verify?user=<identifier>
-// Downloads and verifies the player's snapshot from 0G DA
-exports.verifyDASnapshot = async (req, res) => {
+// GET /api/da/status?user=<identifier>
+// Live-polls the DA gateway for the latest status of the player's event
+exports.getDAStatus = async (req, res) => {
   try {
     const { user } = req.query;
     if (!user) return res.status(400).json({ success: false, error: "Missing 'user' parameter" });
@@ -1345,20 +1354,58 @@ exports.verifyDASnapshot = async (req, res) => {
     const player = await findUserByIdentifier(user);
     if (!player) return res.status(404).json({ success: false, error: "Player not found" });
 
-    const rootHash = player.daSnapshot?.rootHash;
-    if (!rootHash) {
-      return res.json({ success: true, verified: false, message: "No DA snapshot exists for this player" });
+    const eventId = player.daSnapshot?.eventId;
+    if (!eventId) {
+      return res.json({ success: true, found: false, message: "No DA event submitted yet for this player" });
     }
 
-    const result = await zerogDAService.verifyPlayerSnapshot(rootHash);
-    res.json({ success: true, ...result, rootHash });
+    const status = await zerogDAService.getEventStatus(eventId);
+
+    // If confirmed/finalized, persist the blob info back into MongoDB
+    if (status?.daBlobInfo && ['confirmed', 'finalized'].includes(status.daStatus?.toLowerCase())) {
+      await PlayerState.findByIdAndUpdate(player._id, {
+        'daSnapshot.daStatus':    status.daStatus,
+        'daSnapshot.daReference': status.daReference,
+        'daSnapshot.daBlobInfo':  status.daBlobInfo,
+      });
+    }
+
+    res.json({ success: true, eventId, ...status });
   } catch (err) {
-    console.error("❌ Error verifying DA snapshot:", err);
+    console.error("❌ Error getting DA status:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// GET /api/da/retrieve?user=<identifier>
+// Retrieves and decodes the player's blob directly from 0G DA network
+exports.retrieveDAEvent = async (req, res) => {
+  try {
+    const { user } = req.query;
+    if (!user) return res.status(400).json({ success: false, error: "Missing 'user' parameter" });
+
+    const player = await findUserByIdentifier(user);
+    if (!player) return res.status(404).json({ success: false, error: "Player not found" });
+
+    const eventId = player.daSnapshot?.eventId;
+    if (!eventId) {
+      return res.json({ success: true, retrieved: false, message: "No DA event for this player" });
+    }
+
+    const result = await zerogDAService.retrievePlayerEvent(eventId);
+    res.json({ success: true, eventId, ...result });
+  } catch (err) {
+    console.error("❌ Error retrieving DA event:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 };
 
 // GET /api/da/health
-exports.getDAHealth = (req, res) => {
-  res.json({ success: true, da: zerogDAService.healthCheck() });
+exports.getDAHealth = async (req, res) => {
+  try {
+    const status = await zerogDAService.healthCheck();
+    res.json({ success: true, da: status });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 };

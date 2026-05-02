@@ -58,7 +58,8 @@ const {
 
   // 0G DA Endpoints
   getDASnapshot,
-  verifyDASnapshot,
+  getDAStatus,
+  retrieveDAEvent,
   getDAHealth,
 
 } = require("../controllers/playerController");
@@ -122,8 +123,9 @@ router.get("/blockchain/economy-stats", getEconomyStats);
 router.get("/blockchain/economy-health", getEconomyHealth);
 
 // ========== 0G DA ==========
-router.get("/da/snapshot", getDASnapshot);
-router.get("/da/verify", verifyDASnapshot);
-router.get("/da/health", getDAHealth);
+router.get("/da/snapshot",  getDASnapshot);   // stored eventId + status from MongoDB
+router.get("/da/status",    getDAStatus);     // live poll gateway for latest DA status
+router.get("/da/retrieve",  retrieveDAEvent); // retrieve actual blob from 0G DA network
+router.get("/da/health",    getDAHealth);     // gateway health check
 
 module.exports = router;
