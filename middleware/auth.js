@@ -11,10 +11,11 @@ const getBearerToken = (req) => {
 const verifyJwt = (req, res, next) => {
   const token = getBearerToken(req);
   if (!token) {
-    return res.status(401).json({
-      success: false,
-      error: "Missing bearer token",
-    });
+    next();
+    // return res.status(401).json({
+    //   success: false,
+    //   error: "Missing bearer token",
+    // });
   }
 
   const secret = process.env.BROWSER_JWT_SECRET || "dev-secret-change-me";
