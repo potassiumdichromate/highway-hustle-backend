@@ -47,7 +47,7 @@ const PlayerStateSchema = new mongoose.Schema({
   },
 
   // ========== 0G DA SNAPSHOT ==========
-  // Submitted via da.clashofbots.xyz (0G DA Event Gateway)
+  // Submitted via da.warzonewarriors.xyz (0G DA Event Gateway)
   // Gateway forwards events to 0G DA disperser via gRPC (DisperseBlob)
   daSnapshot: {
     eventId:     { type: String },   // UUID we generated — used to poll status & retrieve

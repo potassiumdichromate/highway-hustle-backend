@@ -141,7 +141,7 @@ const sanitizePlayerForClient = (player) => {
 
 // ========== 0G DA: SUBMIT PLAYER EVENT TO DA GATEWAY ==========
 // Fire-and-forget: runs after response is sent, never blocks the API.
-// Submits a game event to https://da.clashofbots.xyz (0G DA Event Gateway).
+// Submits a game event to https://da.warzonewarriors.xyz (0G DA Event Gateway).
 // Gateway batches it and sends to 0G DA disperser via gRPC (DisperseBlob).
 // Persists eventId in MongoDB for later status polling and DA retrieval.
 const saveDASnapshot = (player, trigger) => {
@@ -1335,7 +1335,7 @@ exports.getDASnapshot = async (req, res) => {
         daBlobInfo:  snap.daBlobInfo  || null,
         snapshotAt:  snap.snapshotAt,
         trigger:     snap.trigger,
-        gatewayStatusUrl: `https://da.clashofbots.xyz/v1/da/status/${snap.eventId}`,
+        gatewayStatusUrl: `${zerogDAService.getGatewayBaseUrl()}/v1/da/status/${snap.eventId}`,
       },
     });
   } catch (err) {

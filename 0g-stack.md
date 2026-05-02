@@ -35,7 +35,7 @@ Express.js Backend (Node.js)
       │       └── EconomyManager
       │
       ├── 0G DA (mainnet) ─────────────── Data availability player memory snapshots
-      │       └── da.clashofbots.xyz  (0G DA Event Gateway)
+      │       └── da.warzonewarriors.xyz  (0G DA Event Gateway)
       │           HTTP → BullMQ → gRPC DisperseBlob → { storageRoot, epoch, quorumId }
       │
       └── 0G Compute ──────────────────── AI inference ping (GLM-5-FP8)
@@ -287,7 +287,7 @@ const safeBlockchainCall = async (fn, timeoutMs = 5000) => {
 The game uses a dedicated **0G DA Event Gateway** (`zero_g_da_event_gateway`) deployed at:
 
 ```
-https://da.clashofbots.xyz
+https://da.warzonewarriors.xyz
 ```
 
 This gateway was built specifically for Highway Hustle (and other games). It:
@@ -317,7 +317,7 @@ Highway Hustle Backend
         │  POST /v1/events
         │  { game, event, eventId, data: { scores, currency, ... } }
         ▼
-https://da.clashofbots.xyz  (0G DA Event Gateway)
+https://da.warzonewarriors.xyz  (0G DA Event Gateway)
         │
         ├── BullMQ queue (Redis)
         │
@@ -398,7 +398,7 @@ saveDASnapshot(player, 'score')
           │
           ├── generate eventId = randomUUID()
           │
-          └── POST https://da.clashofbots.xyz/v1/events
+          └── POST https://da.warzonewarriors.xyz/v1/events
                 {
                   eventId, game: 'highwayHustle',
                   event: 'score.best',
@@ -428,7 +428,7 @@ const { randomUUID } = require('crypto');
 const submitPlayerEvent = async (eventName, identifier, playerData) => {
   const eventId = randomUUID();  // we own this ID — stored in MongoDB for lookup
 
-  const res = await fetch('https://da.clashofbots.xyz/v1/events', {
+  const res = await fetch('https://da.warzonewarriors.xyz/v1/events', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${API_KEY}` },
     body: JSON.stringify({
@@ -445,13 +445,13 @@ const submitPlayerEvent = async (eventName, identifier, playerData) => {
 
 // Poll gateway for latest DA status of an eventId
 const getEventStatus = async (eventId) => {
-  const res = await fetch(`https://da.clashofbots.xyz/v1/da/status/${eventId}`, ...);
+  const res = await fetch(`https://da.warzonewarriors.xyz/v1/da/status/${eventId}`, ...);
   // returns { status, daReference, daStatus, daBlobInfo: { storageRoot, epoch, quorumId } }
 };
 
 // Retrieve actual blob from 0G DA network via gateway
 const retrievePlayerEvent = async (eventId) => {
-  const res = await fetch(`https://da.clashofbots.xyz/v1/da/retrieve/${eventId}`, { method: 'POST', ... });
+  const res = await fetch(`https://da.warzonewarriors.xyz/v1/da/retrieve/${eventId}`, { method: 'POST', ... });
   // gateway calls gRPC RetrieveBlob({ storageRoot, epoch, quorumId })
   // returns decoded JSON of original event data
 };
@@ -484,7 +484,7 @@ if (newAchievement && !oldAchievement) saveDASnapshot(player, 'achievement');
 - **Non-blocking:** `setImmediate` — DA submit runs after HTTP response is fully sent. Player never waits.
 - **10s timeout:** If gateway is unreachable, returns `null` silently.
 - **Never throws:** All errors caught internally. Backend cannot crash from a DA failure.
-- **No extra env needed:** Gateway URL is hardcoded (`https://da.clashofbots.xyz`). Set `ZEROG_DA_API_KEY` if the gateway requires auth.
+- **No extra env needed:** Gateway URL is hardcoded (`https://da.warzonewarriors.xyz`). Set `ZEROG_DA_API_KEY` if the gateway requires auth.
 
 ### Check & Retrieve DA Data
 
@@ -644,7 +644,7 @@ POST /api/player/gamemode?user=<identifier>  { bestScoreOneWay: 1500 }
     ├── 0G EVM → ScoreManager.submitScore(identifier, address, mode, score, ...)
     │            [5s timeout]
     │
-    └── 0G DA → POST https://da.clashofbots.xyz/v1/events
+    └── 0G DA → POST https://da.warzonewarriors.xyz/v1/events
                 [setImmediate · 10s timeout · never blocks response]
                 → eventId saved to player.daSnapshot (daStatus: 'submitted')
                 → gateway: gRPC DisperseBlob → CONFIRMED
@@ -688,7 +688,7 @@ POST /api/player/all?user=<identifier>  { campaignData: { Achieved1000M: true } 
     ├── 0G EVM → MissionManager.unlockAchievement(identifier, address, "ACHIEVED_1000M")
     │            [5s timeout]
     │
-    └── 0G DA → POST https://da.clashofbots.xyz/v1/events
+    └── 0G DA → POST https://da.warzonewarriors.xyz/v1/events
                 { event: 'achievement.unlock', data: fullPlayerState }
                 [setImmediate · 10s timeout · never blocks response]
                 → eventId stored (daStatus: 'submitted')
@@ -733,7 +733,7 @@ GET /api/leaderboard/ai-comment?user=<identifier>
   "daBlobInfo": null,
   "snapshotAt": "2025-05-01T12:34:56.789Z",
   "trigger": "score",
-  "gatewayStatusUrl": "https://da.clashofbots.xyz/v1/da/status/uuid..."
+  "gatewayStatusUrl": "https://da.warzonewarriors.xyz/v1/da/status/uuid..."
 }
 ```
 
@@ -805,7 +805,7 @@ MISSION_CONTRACT_ADDRESS=0x<address>
 ECONOMY_CONTRACT_ADDRESS=0x<address>
 
 # ── 0G DA (Data Availability) ───────────────────────────────────────────
-ZEROG_DA_GATEWAY_URL=https://da.clashofbots.xyz  # optional — this URL is hardcoded as fallback
+ZEROG_DA_GATEWAY_URL=https://da.warzonewarriors.xyz  # optional — this URL is hardcoded as fallback
 ZEROG_DA_API_KEY=<bearer_token>                  # gateway Bearer auth (omit if gateway is public)
 
 # ── 0G Compute ──────────────────────────────────────────────────────────
@@ -826,7 +826,7 @@ ZEROG_TIMEOUT_MS=8000
 | EVM RPC | `https://evmrpc.0g.ai` |
 | Chain ID | `16661` |
 | Block Explorer | `https://chainscan.0g.ai` |
-| DA Event Gateway | `https://da.clashofbots.xyz` |
+| DA Event Gateway | `https://da.warzonewarriors.xyz` |
 | 0G Compute Proxy | `https://compute-network-1.integratenetwork.work/v1/proxy` |
 | Faucet (testnet) | `https://faucet.0g.ai` |
 
@@ -835,7 +835,7 @@ ZEROG_TIMEOUT_MS=8000
 | Package | Version | Purpose |
 |---|---|---|
 | `ethers` | `^6.9.0` | EVM provider, wallet, and smart contract interaction |
-| *(none — native `fetch`)* | — | 0G DA — HTTP calls to `da.clashofbots.xyz` gateway; no SDK needed |
+| *(none — native `fetch`)* | — | 0G DA — HTTP calls to `da.warzonewarriors.xyz` gateway; no SDK needed |
 
 ---
 
@@ -844,5 +844,5 @@ ZEROG_TIMEOUT_MS=8000
 | 0G Product | What Highway Hustle Uses It For |
 |---|---|
 | **0G EVM** | 5 smart contracts deployed on chain ID 16661 record every session, score, vehicle switch, achievement, and currency transaction permanently on-chain. Players' on-chain history is immutable and trustlessly queryable. |
-| **0G DA** | Player game state is published to 0G DA on every new best score and achievement unlock via the `da.clashofbots.xyz` gateway. The gateway batches events and forwards them to the 0G DA disperser via gRPC (`DisperseBlob`). Each blob is confirmed with `{ storageRoot, epoch, quorumId }` — anyone can call `RetrieveBlob` to get the original data back without trusting the game server. |
+| **0G DA** | Player game state is published to 0G DA on every new best score and achievement unlock via the `da.warzonewarriors.xyz` gateway. The gateway batches events and forwards them to the 0G DA disperser via gRPC (`DisperseBlob`). Each blob is confirmed with `{ storageRoot, epoch, quorumId }` — anyone can call `RetrieveBlob` to get the original data back without trusting the game server. |
 | **0G Compute** | Every leaderboard AI commentary request fires a parallel inference ping through the 0G Compute network (GLM-5-FP8). This proves Highway Hustle routes real AI workloads through decentralised compute infrastructure on every leaderboard interaction. |

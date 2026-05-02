@@ -2,7 +2,7 @@
  * 0G DA Service — Highway Hustle
  *
  * Sends player game events to the deployed 0G DA Event Gateway:
- *   https://da.clashofbots.xyz
+ *   https://da.warzonewarriors.xyz
  *
  * The gateway accepts HTTP events, batches them, and forwards them to the
  * 0G DA disperser node via gRPC (DisperseBlob → GetBlobStatus → CONFIRMED).
@@ -15,7 +15,7 @@
 
 const { randomUUID } = require('crypto');
 
-const GATEWAY_URL     = process.env.ZEROG_DA_GATEWAY_URL || 'https://da.clashofbots.xyz';
+const GATEWAY_URL     = process.env.ZEROG_DA_GATEWAY_URL || 'https://da.warzonewarriors.xyz';
 const SUBMIT_TIMEOUT  = 10_000;  // 10s — gateway just enqueues, very fast
 const STATUS_TIMEOUT  = 8_000;
 const RETRIEVE_TIMEOUT= 12_000;
@@ -196,9 +196,12 @@ const healthCheck = async () => {
   }
 };
 
+const getGatewayBaseUrl = () => GATEWAY_URL.replace(/\/+$/, '');
+
 module.exports = {
   submitPlayerEvent,
   getEventStatus,
   retrievePlayerEvent,
   healthCheck,
+  getGatewayBaseUrl,
 };
