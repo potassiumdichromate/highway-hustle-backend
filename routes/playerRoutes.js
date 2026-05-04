@@ -69,8 +69,12 @@ const {
 router.post("/player/login", recordPrivyLogin);
 router.post("/player/login/auto", recordAutoLogin);
 
+// POST /player/all — no JWT for now (in-game client does not send browser token yet).
+// TODO: move back below verifyJwt when game sends Authorization: Bearer <token>.
+router.post("/player/all", updateAllPlayerData);
+
 // ========== AUTH MIDDLEWARE ==========
-// Every API below requires JWT, except login endpoints above.
+// Every API below requires JWT, except login + POST /player/all above.
 router.use(verifyJwt);
 
 // ========== GET ENDPOINTS ==========
@@ -81,7 +85,6 @@ router.get("/player/gamemode", getPlayerGameModeData);
 router.get("/player/vehicle", getPlayerVehicleData);
 
 // ========== POST ENDPOINTS ==========
-router.post("/player/all", updateAllPlayerData);
 router.post("/player/privy", updatePrivyData);
 router.post("/player/game", updateUserGameData);
 router.post("/player/gamemode", updatePlayerGameModeData);
