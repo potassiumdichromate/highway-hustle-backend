@@ -175,15 +175,40 @@ const saveDASnapshot = (player, trigger) => {
     player.privyData?.email ||
     String(player._id);
 
-  const eventName = trigger === 'achievement' ? 'achievement.unlock' : 'score.best';
+  const eventName =
+    trigger === 'achievement'
+      ? 'achievement.unlock'
+      : trigger === 'score'
+        ? 'score.best'
+        : trigger === 'full'
+          ? 'player.snapshot'
+          : 'player.snapshot';
+
+  console.log('[0g-da] saveDASnapshot scheduled (runs async via setImmediate)', {
+    trigger,
+    eventName,
+    playerId: String(player._id),
+    identifier:
+      typeof identifier === 'string' && identifier.length > 14
+        ? `${identifier.slice(0, 10)}…${identifier.slice(-4)}`
+        : identifier,
+    gateway: zerogDAService.getDebugSummary(),
+  });
 
   setImmediate(async () => {
     try {
+      console.log('[0g-da] saveDASnapshot async job started', {
+        trigger,
+        eventName,
+        playerId: String(player._id),
+      });
+
       const result = await zerogDAService.submitPlayerEvent(
         eventName,
         identifier,
         player.toObject ? player.toObject() : player
       );
+
       if (result?.eventId) {
         await PlayerState.findByIdAndUpdate(player._id, {
           daSnapshot: {
@@ -193,10 +218,16 @@ const saveDASnapshot = (player, trigger) => {
             trigger,
           },
         });
-        console.log(`[0g-da] eventId ${result.eventId} saved for player ${identifier}`);
+        console.log('[0g-da] MongoDB updated with daSnapshot', {
+          eventId: result.eventId,
+          trigger,
+          playerId: String(player._id),
+        });
+      } else {
+        console.warn('[0g-da] saveDASnapshot finished without eventId — gateway did not accept or request failed (see [0g-da] submit logs above)');
       }
     } catch (err) {
-      console.warn(`[0g-da] Background event error: ${err.message}`);
+      console.warn('[0g-da] saveDASnapshot async error', { message: err.message, stack: err.stack });
     }
   });
 };
@@ -637,7 +668,7 @@ exports.updateAllPlayerData = async (req, res) => {
     const newAchievement = player.campaignData?.Achieved1000M;
     if (newAchievement && !oldAchievement) {
       blockchainResults.achievement = await safeBlockchainCall(() => recordAchievementUnlock(player, "ACHIEVED_1000M"));
-      // 0G DA: snapshot on achievement unlock
+      // 0G DA (original): milestone snapshot when Achieved1000M flips on
       saveDASnapshot(player, 'achievement');
     }
 
@@ -645,6 +676,10 @@ exports.updateAllPlayerData = async (req, res) => {
     if (updateData.playerGameModeData) {
       blockchainResults.score = await safeBlockchainCall(() => recordScoreSubmission(player, player.playerGameModeData));
     }
+
+    // 0G DA (added): full state snapshot on every successful POST /player/all (event: player.snapshot).
+    // Achievement path above still sends achievement.unlock separately when Achieved1000M flips.
+    saveDASnapshot(player, 'full');
 
     const hasBlockchainResults = Object.keys(blockchainResults).length > 0;
     res.json({
@@ -783,7 +818,18 @@ exports.updatePlayerGameModeData = async (req, res) => {
     await player.save();
 
     // 0G DA: snapshot whenever a new best score is achieved
-    if (scoresChanged) saveDASnapshot(player, 'score');
+    if (scoresChanged) {
+      console.log('[0g-da] POST /player/gamemode: best score improved — calling saveDASnapshot', {
+        user: req.query.user,
+        oldScores,
+        mergedScores: player.playerGameModeData,
+      });
+      saveDASnapshot(player, 'score');
+    } else if (updateData.playerGameModeData) {
+      console.log('[0g-da] POST /player/gamemode: playerGameModeData present but no new personal best — no DA submit', {
+        user: req.query.user,
+      });
+    }
 
     res.json({
       success: true,

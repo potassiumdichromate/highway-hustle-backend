@@ -29,9 +29,26 @@ const getHeaders = () => {
   return headers;
 };
 
-const isEnabled = () => !!process.env.ZEROG_DA_GATEWAY_URL ||
-                        process.env.ZEROG_DA_ENABLED === 'true' ||
-                        true; // gateway URL is hardcoded fallback, always try
+const summarizeIdentifier = (id) => {
+  const s = String(id || '');
+  if (s.length <= 14) return s || '(empty)';
+  return `${s.slice(0, 10)}…${s.slice(-4)}`;
+};
+
+const logStartup = () => {
+  console.log('[0g-da] startup config', {
+    gatewayUrl: GATEWAY_URL,
+    eventsUrl: `${GATEWAY_URL.replace(/\/+$/, '')}/v1/events`,
+    statusUrlPattern: `${GATEWAY_URL.replace(/\/+$/, '')}/v1/da/status/:eventId`,
+    hasZerogDaApiKey: Boolean(process.env.ZEROG_DA_API_KEY),
+    zerogDaGatewayEnv: process.env.ZEROG_DA_GATEWAY_URL || '(using default above)',
+    zerogDaEnabledEnv: process.env.ZEROG_DA_ENABLED || '(unset)',
+    submitTimeoutMs: SUBMIT_TIMEOUT,
+    note:
+      'Events POST here. If your custom gateway sees nothing, set ZEROG_DA_GATEWAY_URL to that server URL and restart.',
+  });
+};
+logStartup();
 
 // ─── Payload builder ─────────────────────────────────────────────────────────
 
@@ -60,6 +77,7 @@ const buildEventData = (identifier, playerData) => ({
 
 const submitPlayerEvent = async (eventName, identifier, playerData) => {
   const eventId = randomUUID();   // we own this ID
+  const postUrl = `${GATEWAY_URL.replace(/\/+$/, '')}/v1/events`;
 
   try {
     const body = {
@@ -68,26 +86,68 @@ const submitPlayerEvent = async (eventName, identifier, playerData) => {
       event: eventName,           // e.g. 'score.best' | 'achievement.unlock'
       data:  buildEventData(identifier, playerData),
     };
+    const payloadJson = JSON.stringify(body);
+    const payloadBytes = Buffer.byteLength(payloadJson, 'utf8');
 
-    const res = await fetch(`${GATEWAY_URL}/v1/events`, {
+    console.log('[0g-da] submit → HTTP POST', {
+      url: postUrl,
+      eventId,
+      event: eventName,
+      identifier: summarizeIdentifier(identifier),
+      payloadBytes,
+      hasBearer: Boolean(process.env.ZEROG_DA_API_KEY),
+    });
+
+    const res = await fetch(postUrl, {
       method:  'POST',
       headers: getHeaders(),
-      body:    JSON.stringify(body),
+      body:    payloadJson,
       signal:  AbortSignal.timeout(SUBMIT_TIMEOUT),
     });
 
+    const rawText = await res.text().catch(() => '');
+
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`Gateway ${res.status}: ${text}`);
+      console.warn('[0g-da] submit ✗ HTTP error', {
+        status: res.status,
+        statusText: res.statusText,
+        url: postUrl,
+        eventId,
+        event: eventName,
+        bodySnippet: rawText.slice(0, 800),
+      });
+      throw new Error(`Gateway ${res.status}: ${rawText.slice(0, 200)}`);
     }
 
-    const json = await res.json();
-    // response: { success: true, accepted: 1, queued: N }
-    console.log(`[0g-da] ✅ Event queued | eventId: ${eventId} | event: ${eventName} | player: ${identifier} | accepted: ${json.accepted}`);
+    let json = {};
+    try {
+      json = rawText ? JSON.parse(rawText) : {};
+    } catch (parseErr) {
+      console.warn('[0g-da] submit response not JSON', {
+        eventId,
+        rawSnippet: rawText.slice(0, 400),
+        parseErr: parseErr.message,
+      });
+      throw parseErr;
+    }
+
+    console.log('[0g-da] submit ✓ gateway accepted', {
+      eventId,
+      event: eventName,
+      identifier: summarizeIdentifier(identifier),
+      gatewaySuccess: json.success,
+      accepted: json.accepted,
+      queued: json.queued,
+    });
 
     return { eventId };
   } catch (err) {
-    console.warn(`[0g-da] ⚠️ Submit failed (${eventName} / ${identifier}): ${err.message}`);
+    console.warn('[0g-da] submit failed (returns null to caller)', {
+      event: eventName,
+      identifier: summarizeIdentifier(identifier),
+      eventId,
+      message: err.message,
+    });
     return null;
   }
 };
@@ -125,7 +185,7 @@ const getEventStatus = async (eventId) => {
       updatedAt:   doc.updatedAt,
     };
   } catch (err) {
-    console.warn(`[0g-da] ⚠️ Status check failed (${eventId}): ${err.message}`);
+    console.warn('[0g-da] status check failed', { eventId: summarizeIdentifier(eventId), message: err.message });
     return null;
   }
 };
@@ -198,10 +258,18 @@ const healthCheck = async () => {
 
 const getGatewayBaseUrl = () => GATEWAY_URL.replace(/\/+$/, '');
 
+/** For support / debugging — same fields as startup log */
+const getDebugSummary = () => ({
+  gatewayUrl: GATEWAY_URL,
+  eventsUrl: `${GATEWAY_URL.replace(/\/+$/, '')}/v1/events`,
+  hasApiKey: Boolean(process.env.ZEROG_DA_API_KEY),
+});
+
 module.exports = {
   submitPlayerEvent,
   getEventStatus,
   retrievePlayerEvent,
   healthCheck,
   getGatewayBaseUrl,
+  getDebugSummary,
 };

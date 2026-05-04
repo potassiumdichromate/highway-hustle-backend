@@ -72,11 +72,24 @@ mongoose.connect(process.env.MONGO_URI, {
 
 // ========== 0G DA GATEWAY HEALTH CHECK ON STARTUP ==========
 const zerogDAService = require("./services/zerogDAService");
-zerogDAService.healthCheck().then(s => {
+zerogDAService.healthCheck().then((s) => {
+  const dbg = zerogDAService.getDebugSummary?.() || {};
+  console.log('[0g-da] startup health check', {
+    ...dbg,
+    healthOnline: s.online,
+    healthGateway: s.gateway,
+    targetMode: s.targetMode,
+    completed: s.completed,
+    healthError: s.error || null,
+  });
   if (s.online) {
-    console.log(`✅ 0G DA Gateway: online | ${s.gateway} | mode: ${s.targetMode} | completed blobs: ${s.completed}`);
+    console.log(
+      `✅ 0G DA Gateway: online | ${s.gateway} | mode: ${s.targetMode} | completed blobs: ${s.completed}`
+    );
   } else {
-    console.log(`⚠️  0G DA Gateway: unreachable (${s.gateway}) — DA events will skip silently`);
+    console.log(
+      `⚠️  0G DA Gateway: unreachable (${s.gateway}) — DA submits may fail; POST target is ${dbg.eventsUrl || 'see [0g-da] startup config'}`
+    );
   }
 }).catch(() => console.log(`⚠️  0G DA Gateway: health check failed`));
 
