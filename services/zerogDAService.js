@@ -9,7 +9,7 @@
  * Each event is assigned an eventId that can be used to poll status and
  * retrieve the original blob from the DA network.
  *
- * Auth:    Authorization: Bearer <ZEROG_DA_API_KEY>
+ * Auth:    Authorization: Bearer <ZEROG_DA_API_TOKEN> (fallback: ZEROG_DA_API_KEY)
  * Ref:     https://github.com/RonitSDE/zero_g_da_event_gateway
  */
 
@@ -22,10 +22,14 @@ const RETRIEVE_TIMEOUT= 12_000;
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
+/** Gateway static Bearer: prefer ZEROG_DA_API_TOKEN; ZEROG_DA_API_KEY still works. */
+const getDaBearerToken = () =>
+  (process.env.ZEROG_DA_API_TOKEN || process.env.ZEROG_DA_API_KEY || '').trim();
+
 const getHeaders = () => {
   const headers = { 'Content-Type': 'application/json' };
-  const key = process.env.ZEROG_DA_API_KEY;
-  if (key) headers['Authorization'] = `Bearer ${key}`;
+  const token = getDaBearerToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
   return headers;
 };
 
@@ -40,7 +44,12 @@ const logStartup = () => {
     gatewayUrl: GATEWAY_URL,
     eventsUrl: `${GATEWAY_URL.replace(/\/+$/, '')}/v1/events`,
     statusUrlPattern: `${GATEWAY_URL.replace(/\/+$/, '')}/v1/da/status/:eventId`,
-    hasZerogDaApiKey: Boolean(process.env.ZEROG_DA_API_KEY),
+    hasZerogDaBearer: Boolean(getDaBearerToken()),
+    bearerFrom: process.env.ZEROG_DA_API_TOKEN
+      ? 'ZEROG_DA_API_TOKEN'
+      : process.env.ZEROG_DA_API_KEY
+        ? 'ZEROG_DA_API_KEY'
+        : '(none)',
     zerogDaGatewayEnv: process.env.ZEROG_DA_GATEWAY_URL || '(using default above)',
     zerogDaEnabledEnv: process.env.ZEROG_DA_ENABLED || '(unset)',
     submitTimeoutMs: SUBMIT_TIMEOUT,
@@ -95,7 +104,7 @@ const submitPlayerEvent = async (eventName, identifier, playerData) => {
       event: eventName,
       identifier: summarizeIdentifier(identifier),
       payloadBytes,
-      hasBearer: Boolean(process.env.ZEROG_DA_API_KEY),
+      hasBearer: Boolean(getDaBearerToken()),
     });
 
     const res = await fetch(postUrl, {
@@ -262,7 +271,7 @@ const getGatewayBaseUrl = () => GATEWAY_URL.replace(/\/+$/, '');
 const getDebugSummary = () => ({
   gatewayUrl: GATEWAY_URL,
   eventsUrl: `${GATEWAY_URL.replace(/\/+$/, '')}/v1/events`,
-  hasApiKey: Boolean(process.env.ZEROG_DA_API_KEY),
+  hasBearer: Boolean(getDaBearerToken()),
 });
 
 module.exports = {
