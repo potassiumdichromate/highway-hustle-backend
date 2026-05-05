@@ -831,4 +831,4 @@ ZEROG_TIMEOUT_MS=8000
 |---|---|
 | **0G EVM** | 5 smart contracts deployed on chain ID 16661 record every session, score, vehicle switch, achievement, and currency transaction permanently on-chain. Players' on-chain history is immutable and trustlessly queryable. |
 | **0G DA** | Player game state is published to 0G DA on every new best score and achievement unlock via the `da.warzonewarriors.xyz` gateway. The gateway batches events and forwards them to the 0G DA disperser via gRPC (`DisperseBlob`). Each blob is confirmed with `{ storageRoot, epoch, quorumId }` — anyone can call `RetrieveBlob` to get the original data back without trusting the game server. |
-| **0G Compute** | Every leaderboard AI commentary request fires a parallel inference ping through the 0G Compute network (GLM-5-FP8). This proves Highway Hustle routes real AI workloads through decentralised compute infrastructure on every leaderboard interaction. |
+| **0G Compute** | Leaderboard AI commentary is generated through 0G Compute first using GLM-5-FP8 with max_tokens: 150; Cloudflare is used only as fallback if 0G fails, times out, or returns invalid output. |
