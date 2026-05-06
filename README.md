@@ -61,6 +61,29 @@ Core usage:
 - Vehicle and achievement events
 - Economy and streak events
 
+### Game Mode Contracts (Live: 4)
+
+Only these four game contracts should be visible in product/docs.
+
+- Classic Mode
+- Multi Select
+- Dual Mode
+- Odd One Out
+
+Recommended environment mapping:
+
+```env
+CLASSIC_MODE_CONTRACT_ADDRESS=<0x...>
+MULTI_SELECT_CONTRACT_ADDRESS=<0x...>
+DUAL_MODE_CONTRACT_ADDRESS=<0x...>
+ODD_ONE_OUT_CONTRACT_ADDRESS=<0x...>
+```
+
+Display rule:
+- Do not render duplicate generic labels (for example, repeated "Classic Game").
+- Do not render more than these 4 game-mode contracts.
+- Always bind each address to its exact game-mode name above.
+
 ### 0G DA
 Service:
 - `services/zerogDAService.js`
