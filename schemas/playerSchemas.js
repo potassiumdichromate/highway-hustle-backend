@@ -2,6 +2,8 @@ const Joi = require("joi");
 
 const wallet = Joi.string().pattern(/^0x[a-fA-F0-9]{40}$/);
 const optionalUser = Joi.string().min(2);
+const optionalEmailOrEmpty = Joi.alternatives().try(Joi.string().email(), Joi.string().valid(""));
+const optionalStringOrEmpty = Joi.alternatives().try(Joi.string(), Joi.string().valid(""));
 
 const loginBody = Joi.object({
   identifier: Joi.string().min(2).optional(),
@@ -10,11 +12,11 @@ const loginBody = Joi.object({
   privyMetaData: Joi.object({
     address: wallet.optional(),
     walletAddress: wallet.optional(),
-    email: Joi.string().email().optional(),
-    discord: Joi.string().optional(),
+    email: optionalEmailOrEmpty.optional(),
+    discord: optionalStringOrEmpty.optional(),
     discordId: Joi.string().optional(),
     telegram: Joi.string().optional(),
-    providerName: Joi.string().optional(),
+    providerName: optionalStringOrEmpty.optional(),
     chainId: Joi.alternatives().try(Joi.string(), Joi.number()).optional(),
     type: Joi.string().optional(),
     privyUserId: Joi.string().optional(),

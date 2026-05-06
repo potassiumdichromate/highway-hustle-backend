@@ -26,6 +26,7 @@ const {
   checkUserAchievement,
   getLeaderboard,
   getAllUsers,
+  getStoreAssets,
 } = require("../controllers/campaignController");
 const {
   loginBody,
@@ -95,6 +96,7 @@ router.get("/check-gate-user-achievement", checkGateUserAchievement);
 // ========== UTILITIES ==========
 router.get("/leaderboard", leaderboardLimiter, getLeaderboard);
 router.get("/leaderboard/gate-wallet", leaderboardLimiter, getGateWalletLeaderboard);
+router.get("/store/assets", getStoreAssets);
 router.post("/leaderboard/comment-ping", aiLimiter, validate({ body: aiCommentPingBody }), createLeaderboardCommentPing);
 router.get("/leaderboard/ai-comment", aiLimiter, getLeaderboardAiComment);
 router.get("/users", requireAdmin, getAllUsers);
