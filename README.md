@@ -136,6 +136,47 @@ Flow:
 - Endpoint:
   - `GET /api/leaderboard/ai-comment?user=<identifier>&type=<global|gate>`
 
+### 0G Storage
+
+**Current Use:**
+- Marketplace vehicle assets (images) are stored on 0G Storage
+- Assets are uploaded and accessible via IPFS URLs
+- Vehicle metadata (`data/assets.js`) references these asset files and their IPFS links
+
+**Asset Structure (data/assets.js):**
+Each vehicle in the marketplace includes:
+- `id`: unique vehicle identifier
+- `name`: display name
+- `imageFile`: asset filename
+- `price`: cost in OG currency
+- `rarity`: vehicle rarity tier (Common, Rare, Epic, Legendary)
+
+Example:
+```js
+{
+  id: "coupe",
+  name: "Coupe",
+  imageFile: "coupe.png",    // stored on 0G Storage → IPFS URL
+  price: 120,
+  currency: "OG",
+  rarity: "Common"
+}
+```
+
+**Frontend Integration:**
+- Frontend fetches vehicle list from `data/assets.js`
+- IPFS URLs from 0G Storage are used to display vehicle images in marketplace
+- Ensures decentralized, immutable asset hosting
+
+**Future Expansions:**
+- Cosmetic items (skins, wheels, decals)
+- Achievement badges and trophies
+- Game audio assets
+- Replay metadata and archives
+
+If you need to add or update marketplace assets, upload them to 0G Storage and update their IPFS URLs in `data/assets.js`.
+
+
 ## Observability and Operations
 
 ### Built-in

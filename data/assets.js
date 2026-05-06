@@ -1,3 +1,20 @@
+/**
+ * Highway Hustle Marketplace Assets
+ * 
+ * Vehicle assets are stored on 0G Storage and accessible via IPFS URLs.
+ * Each asset includes metadata for purchase, display, and gameplay.
+ * 
+ * Asset Fields:
+ * - id: Unique identifier
+ * - name: Display name in marketplace
+ * - imageFile: Filename of asset (hosted on 0G Storage → IPFS)
+ * - price: Cost in OG currency
+ * - currency: Currency type
+ * - rarity: Vehicle rarity (Common, Rare, Epic, Legendary)
+ * - rootHash: DA root hash (reference)
+ * - txHash: Transaction hash (reference)
+ */
+
 module.exports = [
   // {
   //   id: "coupe",
