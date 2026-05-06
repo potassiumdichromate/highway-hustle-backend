@@ -61,28 +61,56 @@ Core usage:
 - Vehicle and achievement events
 - Economy and streak events
 
-### Game Mode Contracts (Live: 4)
+### 0G EVM Contracts (Highway Hustle)
 
-Only these four game contracts should be visible in product/docs.
+This backend uses five on-chain contracts, each mapped to a gameplay domain:
 
-- Classic Mode
-- Multi Select
-- Dual Mode
-- Odd One Out
+- Session Contract
+- Score Contract
+- Vehicle Contract
+- Mission Contract
+- Economy Contract
 
-Recommended environment mapping:
+Environment mapping:
 
 ```env
-CLASSIC_MODE_CONTRACT_ADDRESS=<0x...>
-MULTI_SELECT_CONTRACT_ADDRESS=<0x...>
-DUAL_MODE_CONTRACT_ADDRESS=<0x...>
-ODD_ONE_OUT_CONTRACT_ADDRESS=<0x...>
+SESSION_CONTRACT_ADDRESS=<0x...>
+SCORE_CONTRACT_ADDRESS=<0x...>
+VEHICLE_CONTRACT_ADDRESS=<0x...>
+MISSION_CONTRACT_ADDRESS=<0x...>
+ECONOMY_CONTRACT_ADDRESS=<0x...>
 ```
 
-Display rule:
-- Do not render duplicate generic labels (for example, repeated "Classic Game").
-- Do not render more than these 4 game-mode contracts.
-- Always bind each address to its exact game-mode name above.
+Contract constants (backend runtime):
+
+```js
+const SESSION_CONTRACT_ADDRESS = process.env.SESSION_CONTRACT_ADDRESS;
+const SCORE_CONTRACT_ADDRESS = process.env.SCORE_CONTRACT_ADDRESS;
+const VEHICLE_CONTRACT_ADDRESS = process.env.VEHICLE_CONTRACT_ADDRESS;
+const MISSION_CONTRACT_ADDRESS = process.env.MISSION_CONTRACT_ADDRESS;
+const ECONOMY_CONTRACT_ADDRESS = process.env.ECONOMY_CONTRACT_ADDRESS;
+```
+
+Contract constants (frontend display mapping):
+
+```js
+const CONTRACTS = [
+  { key: "SESSION", label: "Session Contract", address: SESSION_CONTRACT_ADDRESS },
+  { key: "SCORE", label: "Score Contract", address: SCORE_CONTRACT_ADDRESS },
+  { key: "VEHICLE", label: "Vehicle Contract", address: VEHICLE_CONTRACT_ADDRESS },
+  { key: "MISSION", label: "Mission Contract", address: MISSION_CONTRACT_ADDRESS },
+  { key: "ECONOMY", label: "Economy Contract", address: ECONOMY_CONTRACT_ADDRESS },
+];
+```
+
+Explorer verification format:
+
+- Address: `https://chainscan.0g.ai/address/<CONTRACT_ADDRESS>`
+- Transaction: `https://chainscan.0g.ai/tx/<TX_HASH>`
+
+Operational note:
+- Frontend should display only configured contracts that match these env vars.
+- Each contract card should use the exact domain label (Session/Score/Vehicle/Mission/Economy).
 
 ### 0G DA
 Service:
