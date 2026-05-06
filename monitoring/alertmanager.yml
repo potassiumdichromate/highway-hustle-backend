@@ -1,0 +1,16 @@
+route:
+  receiver: "default-email"
+  group_by: ["alertname", "severity"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 2h
+
+receivers:
+  - name: "default-email"
+    email_configs:
+      - to: "oncall@example.com"
+        from: "alerts@example.com"
+        smarthost: "smtp.example.com:587"
+        auth_username: "alerts@example.com"
+        auth_password: "replace-me"
+        require_tls: true

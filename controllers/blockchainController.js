@@ -1,0 +1,25 @@
+const legacy = require("./playerController");
+
+module.exports = {
+  getBlockchainSessions: legacy.getBlockchainSessions,
+  getBlockchainSessionCount: legacy.getBlockchainSessionCount,
+  getBlockchainStats: legacy.getBlockchainStats,
+  getBlockchainHealth: legacy.getBlockchainHealth,
+  getBlockchainVehicles: legacy.getBlockchainVehicles,
+  getVehicleSwitchHistory: legacy.getVehicleSwitchHistory,
+  getVehicleStats: legacy.getVehicleStats,
+  getVehicleHealth: legacy.getVehicleHealth,
+  getBlockchainAchievements: legacy.getBlockchainAchievements,
+  checkBlockchainAchievement: legacy.checkBlockchainAchievement,
+  getMissionStats: legacy.getMissionStats,
+  getMissionHealth: legacy.getMissionHealth,
+  getBlockchainScores: legacy.getBlockchainScores,
+  getBlockchainLeaderboard: legacy.getBlockchainLeaderboard,
+  getScoreStats: legacy.getScoreStats,
+  getScoreHealth: legacy.getScoreHealth,
+  getBlockchainEconomy: legacy.getBlockchainEconomy,
+  getBlockchainStreak: legacy.getBlockchainStreak,
+  getEconomyStats: legacy.getEconomyStats,
+  getEconomyHealth: legacy.getEconomyHealth,
+  reconcilePlayerState: legacy.reconcilePlayerState,
+};

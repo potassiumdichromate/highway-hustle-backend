@@ -1,6 +1,6 @@
 # Highway Hustle × 0G — Full Infrastructure Stack
 
-Highway Hustle is a Web3 racing game where every meaningful player action — a high score, a vehicle purchase, a currency earn, an achievement — is recorded on-chain or in decentralized storage. The backend integrates all three core 0G infrastructure products: **0G EVM (smart contracts)**, **0G DA (Data Availability — player memory)**, and **0G Compute (AI inference)**. This document is a complete technical reference for how each is wired into the game.
+Highway Hustle is a Web3 racing game where every meaningful player action — a high score, a vehicle purchase, a currency earn, an achievement — is recorded on-chain and published to decentralized data availability. The backend integrates three core 0G infrastructure products: **0G EVM (smart contracts)**, **0G DA (Data Availability — player memory)**, and **0G Compute (AI inference)**. This document is a complete technical reference for how each is wired into the game.
 
 ---
 
@@ -42,7 +42,7 @@ Express.js Backend (Node.js)
               └── compute-network-1.integratenetwork.work
 ```
 
-**Design principle:** MongoDB is the fast, queryable source of truth for live gameplay. The 0G stack adds a trustless, decentralized layer on top — every important event is recorded on the 0G EVM chain, player game states are published to 0G DA as verifiable snapshots, and AI-driven leaderboard features are piped through 0G Compute. If any 0G service is unavailable, the game continues unaffected — all 0G calls are non-blocking.
+**Design principle:** MongoDB is the fast, queryable source of truth for live gameplay. The 0G stack adds a trustless, decentralized layer on top — every important event is recorded on the 0G EVM chain, player game states are published to 0G DA as verifiable snapshots, and AI-driven leaderboard features are piped through 0G Compute. This architecture does not claim 0G Storage as a deployed component; the backend currently uses 0G DA via an event gateway. If any 0G service is unavailable, the game continues unaffected — all 0G calls are non-blocking.
 
 ---
 

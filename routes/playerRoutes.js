@@ -1,79 +1,78 @@
 const express = require("express");
 const router = express.Router();
-const { verifyJwt } = require("../middleware/auth");
+const rateLimit = require("express-rate-limit");
+const blockchainRoutes = require("./blockchainRoutes");
+const daRoutes = require("./daRoutes");
+const { verifyJwt, enforceAuthIdentity, requireAdmin } = require("../middleware/auth");
+const { validate } = require("../middleware/validate");
+const { recordPrivyLogin, recordAutoLogin } = require("../controllers/authController");
 const {
-  // GET endpoints
   getAllPlayerData,
   getPrivyData,
   getUserGameData,
   getPlayerGameModeData,
   getPlayerVehicleData,
-  getGateWalletLeaderboard,
-  checkGateUserAchievement,
-  
-  // POST endpoints
   updateAllPlayerData,
   updatePrivyData,
   updateUserGameData,
   updatePlayerGameModeData,
   updatePlayerVehicleData,
-  recordPrivyLogin,
-  recordAutoLogin,
-
-  // Campaign & Utilities
+} = require("../controllers/playerDataController");
+const {
+  getGateWalletLeaderboard,
+  checkGateUserAchievement,
   createLeaderboardCommentPing,
   getLeaderboardAiComment,
   checkUserAchievement,
   getLeaderboard,
   getAllUsers,
+} = require("../controllers/campaignController");
+const {
+  loginBody,
+  autoLoginBody,
+  userQuery,
+  updateAllBody,
+  updateObjectBody,
+  aiCommentPingBody,
+} = require("../schemas/playerSchemas");
+const authLimiter = rateLimit({
+  windowMs: Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
+  max: Number(process.env.AUTH_RATE_LIMIT_MAX || 40),
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
-  // Session Blockchain Endpoints
-  getBlockchainSessions,
-  getBlockchainSessionCount,
-  getBlockchainStats,
-  getBlockchainHealth,
+const stateWriteLimiter = rateLimit({
+  windowMs: Number(process.env.STATE_WRITE_RATE_LIMIT_WINDOW_MS || 5 * 60 * 1000),
+  max: Number(process.env.STATE_WRITE_RATE_LIMIT_MAX || 120),
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
-  // Vehicle Blockchain Endpoints
-  getBlockchainVehicles,
-  getVehicleSwitchHistory,
-  getVehicleStats,
-  getVehicleHealth,
+const aiLimiter = rateLimit({
+  windowMs: Number(process.env.AI_RATE_LIMIT_WINDOW_MS || 5 * 60 * 1000),
+  max: Number(process.env.AI_RATE_LIMIT_MAX || 30),
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
-  // Mission Blockchain Endpoints
-  getBlockchainAchievements,
-  checkBlockchainAchievement,
-  getMissionStats,
-  getMissionHealth,
-
-  // Score Blockchain Endpoints
-  getBlockchainScores,
-  getBlockchainLeaderboard,
-  getScoreStats,
-  getScoreHealth,
-
-  // Economy Blockchain Endpoints
-  getBlockchainEconomy,
-  getBlockchainStreak,
-  getEconomyStats,
-  getEconomyHealth,
-
-  // 0G DA Endpoints
-  getDASnapshot,
-  getDAStatus,
-  retrieveDAEvent,
-  getDAHealth,
-
-} = require("../controllers/playerController");
+const leaderboardLimiter = rateLimit({
+  windowMs: Number(process.env.LEADERBOARD_RATE_LIMIT_WINDOW_MS || 60 * 1000),
+  max: Number(process.env.LEADERBOARD_RATE_LIMIT_MAX || 60),
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 // ========== POST ENDPOINTS ==========
-router.post("/player/login", recordPrivyLogin);
-router.post("/player/login/auto", recordAutoLogin);
+router.post("/player/login", authLimiter, validate({ body: loginBody }), recordPrivyLogin);
+router.post("/player/login/auto", authLimiter, validate({ body: autoLoginBody }), recordAutoLogin);
 
 // ========== AUTH MIDDLEWARE ==========
 // Every API below requires JWT.
 router.use(verifyJwt);
+router.use(enforceAuthIdentity);
 
-router.post("/player/all", updateAllPlayerData);
+router.post("/player/all", stateWriteLimiter, validate({ query: userQuery, body: updateAllBody }), updateAllPlayerData);
 
 // ========== GET ENDPOINTS ==========
 router.get("/player/all", getAllPlayerData);
@@ -83,10 +82,10 @@ router.get("/player/gamemode", getPlayerGameModeData);
 router.get("/player/vehicle", getPlayerVehicleData);
 
 // ========== POST ENDPOINTS ==========
-router.post("/player/privy", updatePrivyData);
-router.post("/player/game", updateUserGameData);
-router.post("/player/gamemode", updatePlayerGameModeData);
-router.post("/player/vehicle", updatePlayerVehicleData);
+router.post("/player/privy", stateWriteLimiter, validate({ query: userQuery, body: updateObjectBody }), updatePrivyData);
+router.post("/player/game", stateWriteLimiter, validate({ query: userQuery, body: updateObjectBody }), updateUserGameData);
+router.post("/player/gamemode", stateWriteLimiter, validate({ query: userQuery, body: updateObjectBody }), updatePlayerGameModeData);
+router.post("/player/vehicle", stateWriteLimiter, validate({ query: userQuery, body: updateObjectBody }), updatePlayerVehicleData);
 
 // ========== CAMPAIGN & GALXE ==========
 router.get("/check-user-achievement", checkUserAchievement);
@@ -94,46 +93,13 @@ router.get("/check-gate-user-achievement/:address?", checkGateUserAchievement);
 router.get("/check-gate-user-achievement", checkGateUserAchievement);
 
 // ========== UTILITIES ==========
-router.get("/leaderboard", getLeaderboard);
-router.get("/leaderboard/gate-wallet", getGateWalletLeaderboard);
-router.post("/leaderboard/comment-ping", createLeaderboardCommentPing);
-router.get("/leaderboard/ai-comment", getLeaderboardAiComment);
-router.get("/users", getAllUsers);
+router.get("/leaderboard", leaderboardLimiter, getLeaderboard);
+router.get("/leaderboard/gate-wallet", leaderboardLimiter, getGateWalletLeaderboard);
+router.post("/leaderboard/comment-ping", aiLimiter, validate({ body: aiCommentPingBody }), createLeaderboardCommentPing);
+router.get("/leaderboard/ai-comment", aiLimiter, getLeaderboardAiComment);
+router.get("/users", requireAdmin, getAllUsers);
 
-// ========== SESSION BLOCKCHAIN ==========
-router.get("/blockchain/sessions", getBlockchainSessions);
-router.get("/blockchain/session-count", getBlockchainSessionCount);
-router.get("/blockchain/stats", getBlockchainStats);
-router.get("/blockchain/health", getBlockchainHealth);
-
-// ========== VEHICLE BLOCKCHAIN ==========
-router.get("/blockchain/vehicles", getBlockchainVehicles);
-router.get("/blockchain/vehicle-history", getVehicleSwitchHistory);
-router.get("/blockchain/vehicle-stats", getVehicleStats);
-router.get("/blockchain/vehicle-health", getVehicleHealth);
-
-// ========== MISSION BLOCKCHAIN ==========
-router.get("/blockchain/achievements", getBlockchainAchievements);
-router.get("/blockchain/achievement-check", checkBlockchainAchievement);
-router.get("/blockchain/mission-stats", getMissionStats);
-router.get("/blockchain/mission-health", getMissionHealth);
-
-// ========== SCORE BLOCKCHAIN ==========
-router.get("/blockchain/scores", getBlockchainScores);
-router.get("/blockchain/leaderboard", getBlockchainLeaderboard);
-router.get("/blockchain/score-stats", getScoreStats);
-router.get("/blockchain/score-health", getScoreHealth);
-
-// ========== ECONOMY BLOCKCHAIN ==========
-router.get("/blockchain/economy", getBlockchainEconomy);
-router.get("/blockchain/streak", getBlockchainStreak);
-router.get("/blockchain/economy-stats", getEconomyStats);
-router.get("/blockchain/economy-health", getEconomyHealth);
-
-// ========== 0G DA ==========
-router.get("/da/snapshot",  getDASnapshot);   // stored eventId + status from MongoDB
-router.get("/da/status",    getDAStatus);     // live poll gateway for latest DA status
-router.get("/da/retrieve",  retrieveDAEvent); // retrieve actual blob from 0G DA network
-router.get("/da/health",    getDAHealth);     // gateway health check
+router.use(blockchainRoutes);
+router.use(daRoutes);
 
 module.exports = router;

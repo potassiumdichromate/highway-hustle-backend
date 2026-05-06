@@ -3,15 +3,49 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const helmet = require("helmet");
 const compression = require("compression");
+const crypto = require("crypto");
 require("dotenv").config();
+const { getJwtSecret } = require("./middleware/auth");
+const { observeHttpRequest, metricsHandler } = require("./lib/metrics");
+const { responseContractMiddleware } = require("./middleware/responseContract");
 
 const app = express();
 
 // ========== SECURITY & PERFORMANCE MIDDLEWARE ==========
 app.use(helmet());
 app.use(compression());
+
+const parseAllowedOrigins = () =>
+  String(process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+const isProd = process.env.NODE_ENV === "production";
+const devAllowedOrigins = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+];
+const configuredOrigins = parseAllowedOrigins();
+const allowedOrigins = configuredOrigins.length > 0 ? configuredOrigins : (isProd ? [] : devAllowedOrigins);
+if (isProd && allowedOrigins.length === 0) {
+  throw new Error("ALLOWED_ORIGINS is required in production");
+}
+if (isProd) {
+  getJwtSecret();
+}
+
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.length === 0) {
+      return callback(new Error("CORS origin rejected"), false);
+    }
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error("CORS origin rejected"), false);
+  },
   credentials: true
 }));
 
@@ -19,13 +53,42 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ========== REQUEST LOGGING (Production) ==========
+// ========== RESPONSE CONTRACT ENFORCEMENT ==========
+app.use(responseContractMiddleware);
+
+const metrics = {
+  requests: 0,
+  errors5xx: 0,
+  byStatus: {}
+};
+
+// ========== REQUEST LOGGING + BASIC METRICS ==========
 app.use((req, res, next) => {
+  const requestId = req.headers["x-request-id"] || crypto.randomUUID();
+  req.requestId = requestId;
+  res.setHeader("x-request-id", requestId);
   const start = Date.now();
   res.on('finish', () => {
     const duration = Date.now() - start;
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`);
+    const status = Number(res.statusCode);
+    metrics.requests += 1;
+    metrics.byStatus[status] = (metrics.byStatus[status] || 0) + 1;
+    if (status >= 500) metrics.errors5xx += 1;
+    console.log(JSON.stringify({
+      ts: new Date().toISOString(),
+      level: status >= 500 ? "error" : "info",
+      msg: "http_request",
+      requestId,
+      method: req.method,
+      path: req.path,
+      status,
+      durationMs: duration
+    }));
   });
+  next();
+});
+app.use((req, res, next) => {
+  observeHttpRequest(req, res);
   next();
 });
 
@@ -38,41 +101,56 @@ app.get("/health", (req, res) => {
   res.status(200).json({ 
     status: "healthy", 
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    metrics
   });
 });
+app.get("/metrics", metricsHandler);
 
 // ========== 404 HANDLER ==========
 app.use((req, res) => {
   res.status(404).json({ 
     success: false, 
-    error: "Endpoint not found" 
+    error: "Endpoint not found",
+    code: "NOT_FOUND"
   });
 });
 
 // ========== GLOBAL ERROR HANDLER ==========
 app.use((err, req, res, next) => {
-  console.error("❌ Unhandled Error:", err);
+  console.error(JSON.stringify({
+    ts: new Date().toISOString(),
+    level: "error",
+    msg: "unhandled_error",
+    requestId: req.requestId || null,
+    path: req.path,
+    method: req.method,
+    error: err?.message || "unknown_error"
+  }));
   res.status(500).json({ 
     success: false, 
-    error: "Internal server error" 
+    error: "Internal server error",
+    code: "INTERNAL_ERROR"
   });
 });
 
-// ========== DATABASE CONNECTION ==========
-mongoose.connect(process.env.MONGO_URI, {
-  serverSelectionTimeoutMS: 10000,
-  socketTimeoutMS: 45000,
-})
-.then(() => console.log("✅ MongoDB Connected"))
-.catch(err => {
-  console.error("❌ MongoDB Connection Error:", err.message);
-  console.log("⚠️  Backend running without MongoDB. Blockchain features still work!");
-});
+const isTest = process.env.NODE_ENV === "test";
 
 // ========== 0G DA GATEWAY HEALTH CHECK ON STARTUP ==========
 const zerogDAService = require("./services/zerogDAService");
-zerogDAService.healthCheck().then((s) => {
+const daSnapshotService = require("./services/daSnapshotService");
+const runStartupTasks = () => {
+  mongoose.connect(process.env.MONGO_URI, {
+    serverSelectionTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
+  })
+  .then(() => console.log("✅ MongoDB Connected"))
+  .catch(err => {
+    console.error("❌ MongoDB Connection Error:", err.message);
+    console.log("⚠️  Backend running without MongoDB. Blockchain features still work!");
+  });
+
+  zerogDAService.healthCheck().then((s) => {
   const dbg = zerogDAService.getDebugSummary?.() || {};
   console.log('[0g-da] startup health check', {
     ...dbg,
@@ -91,7 +169,10 @@ zerogDAService.healthCheck().then((s) => {
       `⚠️  0G DA Gateway: unreachable (${s.gateway}) — DA submits may fail; POST target is ${dbg.eventsUrl || 'see [0g-da] startup config'}`
     );
   }
-}).catch(() => console.log(`⚠️  0G DA Gateway: health check failed`));
+  }).catch(() => console.log(`⚠️  0G DA Gateway: health check failed`));
+
+  daSnapshotService.startBackgroundSync();
+};
 
 // ========== INITIALIZE ALL BLOCKCHAIN SERVICES ON STARTUP ==========
 const blockchainService = require("./services/blockchainService");
@@ -141,7 +222,9 @@ async function initializeBlockchain() {
 }
 
 // Initialize blockchain after a short delay to ensure server is ready
-setTimeout(initializeBlockchain, 2000);
+const scheduleBlockchainInit = () => {
+  setTimeout(initializeBlockchain, 2000);
+};
 
 // ========== GRACEFUL SHUTDOWN ==========
 process.on('SIGINT', async () => {
@@ -157,11 +240,19 @@ process.on('SIGTERM', async () => {
 });
 
 // ========== START SERVER ==========
-const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
-  console.log(`🚀 Highway Hustle Backend running on port ${PORT}`);
-  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Blockchain Integration: Enabled (5 contracts)`);
-});
+const startServer = () => {
+  const PORT = process.env.PORT || 5001;
+  return app.listen(PORT, () => {
+    console.log(`🚀 Highway Hustle Backend running on port ${PORT}`);
+    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🔗 Blockchain Integration: Enabled (5 contracts)`);
+  });
+};
+
+if (!isTest) {
+  runStartupTasks();
+  scheduleBlockchainInit();
+  startServer();
+}
 
 module.exports = app;
