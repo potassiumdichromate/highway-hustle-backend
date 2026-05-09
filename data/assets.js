@@ -1,38 +1,11 @@
-/**
- * Highway Hustle Marketplace Assets
- * 
- * Vehicle assets are stored on 0G Storage and accessible via IPFS URLs.
- * Each asset includes metadata for purchase, display, and gameplay.
- * 
- * Asset Fields:
- * - id: Unique identifier
- * - name: Display name in marketplace
- * - imageFile: Filename of asset (hosted on 0G Storage → IPFS)
- * - price: Cost in OG currency
- * - currency: Currency type
- * - rarity: Vehicle rarity (Common, Rare, Epic, Legendary)
- * - rootHash: DA root hash (reference)
- * - txHash: Transaction hash (reference)
- */
-
 module.exports = [
-  // {
-  //   id: "coupe",
-  //   name: "Coupe",
-  //   imageFile: "coupe.png",
-  //   rootHash: "0x2cb75530dc3b0b9333dfa01639fb309f1e2b51d60ada15effa43f6b5f9648ac6",
-  //   txHash: "0x13a0cf1c2628ede979d983e403acd97807919baeba71144e146335428300029a",
-  //   price: 120,
-  //   currency: "OG",
-  //   rarity: "Common",
-  // },
   {
     id: "ctr",
     name: "CTR",
     imageFile: "ctr.png",
     rootHash: "0x0006db0e78b69bf526ba2df3fe8fcda1129076918a2da56a6c03e765c940b2a1",
     txHash: "0x4c8a1f8995989530c7550d2fe86c1a37cbc21766ee26a4a3aff1bad6012519b0",
-    price: 5,
+    price: 10,
     currency: "OG",
     rarity: "Legendary",
   },
@@ -42,7 +15,7 @@ module.exports = [
     imageFile: "f1.png",
     rootHash: "0x37c1fa4fd362b7b9e2a883d995af8a7a6a04695f751feed5b2ced8439cad2792",
     txHash: "0x465c10124a87e1104a8d0c20621a08577062fbf0e3c35b522558ff5917b40d48",
-    price: 15,
+    price: 20,
     currency: "OG",
     rarity: "Legendary",
   },
@@ -52,7 +25,7 @@ module.exports = [
     imageFile: "jeep.png",
     rootHash: "0x0527fbc6f1db5fb38482c7cf7815e26ccd9fe4bead897b42dbed5668068cf982",
     txHash: "0xa6db1117df97b547c2b633f1f37bda32959a783fd9f79f1d4f31a957b1befa53",
-    price: 10,
+    price: 3,
     currency: "OG",
     rarity: "Epic",
   },
@@ -62,7 +35,7 @@ module.exports = [
     imageFile: "lamborghini.png",
     rootHash: "0x3327dcbcb019cdf967fc8605cbb2546c748ec26acd53c357f777315ccee0b44e",
     txHash: "0x803a8eac06f8fa6acf67ccaf87ff83cb781fdeb7f311bc96e30aea892952706f",
-    price: 12,
+    price: 15,
     currency: "OG",
     rarity: "Legendary",
   },
@@ -72,28 +45,18 @@ module.exports = [
     imageFile: "muscle.png",
     rootHash: "0x7f17db8ffed9a9b857a9c802a9a5f8b829e45f126647782a0c0164713eb3bee6",
     txHash: "0x0b9cb271f572702b2eb9d27388d635e4ab07f06556a959686dcf3bb6a9509a4d",
-    price: 2,
+    price: 5,
     currency: "OG",
     rarity: "Epic",
   },
-  // {
-  //   id: "pickup",
-  //   name: "Pickup",
-  //   imageFile: "pickup.png",
-  //   rootHash: "0x21cb6a101c1178a4c6f5a1aa4ac8b0c2f6758137d550c9b890816685ef8b0599",
-  //   txHash: "0x1a955cbfd453bb8d5eaa99de912f94ac4b1ad8344a56bc1bc799114e4ee7ed82",
-  //   price: 140,
-  //   currency: "OG",
-  //   rarity: "Common",
-  // },
   {
     id: "suv",
     name: "SUV",
     imageFile: "suv.png",
     rootHash: "0x752d47bc4ed8d9fdf4cd3459953ba5a38e4b82714cec2232e80be0533512a67e",
     txHash: "0x55fe29c76b5b0c80e5dcbc772de3374c06e9271381e147290d406ba87d389092",
-    price: 5,
+    price: 2,
     currency: "OG",
     rarity: "Rare",
-  },
+  }
 ];

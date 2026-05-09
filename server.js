@@ -94,7 +94,9 @@ app.use((req, res, next) => {
 
 // ========== ROUTES ==========
 const playerRoutes = require("./routes/playerRoutes");
+const marketplaceRoutes = require("./routes/marketplaceRoutes");
 app.use("/api", playerRoutes);
+app.use("/api/marketplace", marketplaceRoutes);
 
 // ========== HEALTH CHECK ==========
 app.get("/health", (req, res) => {

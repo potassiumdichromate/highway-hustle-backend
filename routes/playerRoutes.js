@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
+const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
+const { SiweMessage } = require("siwe");
 const blockchainRoutes = require("./blockchainRoutes");
 const daRoutes = require("./daRoutes");
 const { verifyJwt, enforceAuthIdentity, requireAdmin } = require("../middleware/auth");
@@ -62,6 +64,76 @@ const leaderboardLimiter = rateLimit({
   max: Number(process.env.LEADERBOARD_RATE_LIMIT_MAX || 60),
   standardHeaders: true,
   legacyHeaders: false
+});
+
+// ========== SIWE AUTH — in-memory nonce store (address → { nonce, expiresAt }) ==========
+const SIWE_NONCE_TTL_MS = 5 * 60 * 1000;
+const siweNonces = new Map();
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of siweNonces) {
+    if (val.expiresAt <= now) siweNonces.delete(key);
+  }
+}, 60_000);
+
+const siweNonceLimiter = rateLimit({ windowMs: 60_000, max: 20, standardHeaders: true, legacyHeaders: false });
+
+// GET /player/auth/siwe-nonce?address=0x...
+router.get("/player/auth/siwe-nonce", siweNonceLimiter, (req, res) => {
+  const address = (req.query.address || "").trim().toLowerCase();
+  if (!address || !/^0x[0-9a-f]{40}$/i.test(address)) {
+    return res.status(400).json({ success: false, error: "valid address required" });
+  }
+  const nonce = crypto.randomBytes(16).toString("hex");
+  siweNonces.set(address, { nonce, expiresAt: Date.now() + SIWE_NONCE_TTL_MS });
+  return res.json({ success: true, nonce, expiresInSec: SIWE_NONCE_TTL_MS / 1000 });
+});
+
+// POST /player/auth/siwe-login  { message, signature }
+// Verifies EIP-4361 wallet signature, then delegates to recordPrivyLogin so
+// player upsert + JWT issuance is identical to the existing /player/login flow.
+router.post("/player/auth/siwe-login", authLimiter, async (req, res, next) => {
+  try {
+    const { message, signature } = req.body || {};
+    if (!message || typeof message !== "string") {
+      return res.status(400).json({ success: false, error: "message is required" });
+    }
+    if (!signature || typeof signature !== "string") {
+      return res.status(400).json({ success: false, error: "signature is required" });
+    }
+
+    let siweMessage;
+    try {
+      siweMessage = new SiweMessage(message);
+    } catch {
+      return res.status(400).json({ success: false, error: "invalid SIWE message format" });
+    }
+
+    const address = siweMessage.address.toLowerCase();
+    const stored = siweNonces.get(address);
+    if (!stored || stored.nonce !== siweMessage.nonce || stored.expiresAt <= Date.now()) {
+      siweNonces.delete(address);
+      return res.status(401).json({ success: false, error: "invalid or expired nonce" });
+    }
+
+    const result = await siweMessage.verify({ signature });
+    siweNonces.delete(address);
+
+    if (!result.success) {
+      return res.status(401).json({ success: false, error: "invalid SIWE signature" });
+    }
+
+    // Inject the verified wallet so recordPrivyLogin trusts it without re-validation.
+    req.body = {
+      ...req.body,
+      walletAddress: siweMessage.address,
+      identifier: siweMessage.address,
+      privyMetaData: { ...(req.body.privyMetaData || {}), address: siweMessage.address, type: "wallet" },
+    };
+    return recordPrivyLogin(req, res, next);
+  } catch (err) {
+    next(err);
+  }
 });
 
 // ========== POST ENDPOINTS ==========
