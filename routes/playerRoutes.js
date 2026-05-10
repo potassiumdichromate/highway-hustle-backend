@@ -141,13 +141,13 @@ router.post("/player/login", authLimiter, validate({ body: loginBody }), recordP
 router.post("/player/login/auto", authLimiter, validate({ body: autoLoginBody }), recordAutoLogin);
 
 
+router.post("/player/all", stateWriteLimiter, validate({ query: userQuery, body: updateAllBody }), updateAllPlayerData);
+router.get("/player/all", getAllPlayerData);
 
 router.use(verifyJwt);
 router.use(enforceAuthIdentity);
 
 
-router.post("/player/all", stateWriteLimiter, validate({ query: userQuery, body: updateAllBody }), updateAllPlayerData);
-router.get("/player/all", getAllPlayerData);
 
 // ========== AUTH MIDDLEWARE ==========
 // Every API below requires JWT.
