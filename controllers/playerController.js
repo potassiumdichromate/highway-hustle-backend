@@ -815,8 +815,7 @@ exports.getLeaderboard = async (req, res) => {
   try {
     const leaderboard = await PlayerState.find()
       .sort({ 'userGameData.currency': -1 })
-      .limit(10)
-      .select('privyData.walletAddress userGameData.playerName userGameData.currency');
+      .select('privyData.walletAddress userGameData.playerName userGameData.currency playerGameModeData.bestScoreOneWay playerVehicleData.selectedPlayerCarIndex');
     
     res.json({ success: true, leaderboard });
   } catch (err) {
@@ -842,8 +841,7 @@ exports.getGateWalletLeaderboard = async (req, res) => {
   try {
     const leaderboard = await PlayerState.find({ 'privyData.type': 'gate_wallet' })
       .sort({ 'userGameData.currency': -1 })
-      .limit(10)
-      .select('privyData.walletAddress userGameData.playerName userGameData.currency');
+      .select('privyData.walletAddress userGameData.playerName userGameData.currency playerGameModeData.bestScoreOneWay playerVehicleData.selectedPlayerCarIndex');
 
     res.json({ success: true, leaderboard });
   } catch (err) {
