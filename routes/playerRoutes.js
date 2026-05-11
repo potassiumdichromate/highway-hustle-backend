@@ -149,9 +149,15 @@ router.get("/check-gate-user-achievement", checkGateUserAchievement);
 
 router.post("/player/all", stateWriteLimiter, validate({ query: userQuery, body: updateAllBody }), updateAllPlayerData);
 router.get("/player/all", getAllPlayerData);
+router.post("/leaderboard/comment-ping", aiLimiter, validate({ body: aiCommentPingBody }), createLeaderboardCommentPing);
+router.get("/leaderboard/ai-comment", aiLimiter, getLeaderboardAiComment);
 
 // ========== AUTH MIDDLEWARE ==========
 router.use(verifyJwt);
+
+// ========== AUTHORIZED BUT IDENTITY-AGNOSTIC ENDPOINTS ==========
+// These require a valid JWT but allow viewing data of other users (e.g. leaderboard AI)
+
 router.use(enforceAuthIdentity);
 
 // ========== PROTECTED ENDPOINTS ==========
@@ -168,8 +174,6 @@ router.post("/player/gamemode", stateWriteLimiter, validate({ query: userQuery, 
 router.post("/player/vehicle", stateWriteLimiter, validate({ query: userQuery, body: updateObjectBody }), updatePlayerVehicleData);
 
 // ========== UTILITIES (Protected) ==========
-router.post("/leaderboard/comment-ping", aiLimiter, validate({ body: aiCommentPingBody }), createLeaderboardCommentPing);
-router.get("/leaderboard/ai-comment", aiLimiter, getLeaderboardAiComment);
 router.get("/users", requireAdmin, getAllUsers);
 
 router.use(blockchainRoutes);
