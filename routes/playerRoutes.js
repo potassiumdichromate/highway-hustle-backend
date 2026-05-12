@@ -153,8 +153,6 @@ router.get("/player/all", getAllPlayerData);
 router.post("/leaderboard/comment-ping", aiLimiter, validate({ body: aiCommentPingBody }), createLeaderboardCommentPing);
 router.get("/leaderboard/ai-comment", aiLimiter, getLeaderboardAiComment);
 router.use("/marketplace", marketplaceRoutes);
-// const marketplaceRoutes = require("./routes/marketplaceRoutes");
-// app.use("/api/marketplace", marketplaceRoutes);
 
 // ========== AUTH MIDDLEWARE ==========
 router.use(verifyJwt);
