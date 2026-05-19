@@ -150,9 +150,16 @@ router.get("/check-gate-user-achievement", checkGateUserAchievement);
 
 router.post("/player/all", stateWriteLimiter, validate({ query: userQuery, body: updateAllBody }), updateAllPlayerData);
 router.get("/player/all", getAllPlayerData);
+// On-chain writes (Economy / Score / Vehicle / Mission) — public for game client + web
+router.post("/player/game", stateWriteLimiter, validate({ query: userQuery, body: updateObjectBody }), updateUserGameData);
+router.post("/player/gamemode", stateWriteLimiter, validate({ query: userQuery, body: updateObjectBody }), updatePlayerGameModeData);
+router.post("/player/vehicle", stateWriteLimiter, validate({ query: userQuery, body: updateObjectBody }), updatePlayerVehicleData);
 router.post("/leaderboard/comment-ping", aiLimiter, validate({ body: aiCommentPingBody }), createLeaderboardCommentPing);
 router.get("/leaderboard/ai-comment", aiLimiter, getLeaderboardAiComment);
 router.use("/marketplace", marketplaceRoutes);
+
+// ========== BLOCKCHAIN (public — no JWT; ?user= identifies player) ==========
+router.use(blockchainRoutes);
 
 // ========== AUTH MIDDLEWARE ==========
 router.use(verifyJwt);
@@ -171,14 +178,10 @@ router.get("/player/gamemode", getPlayerGameModeData);
 router.get("/player/vehicle", getPlayerVehicleData);
 
 router.post("/player/privy", stateWriteLimiter, validate({ query: userQuery, body: updateObjectBody }), updatePrivyData);
-router.post("/player/game", stateWriteLimiter, validate({ query: userQuery, body: updateObjectBody }), updateUserGameData);
-router.post("/player/gamemode", stateWriteLimiter, validate({ query: userQuery, body: updateObjectBody }), updatePlayerGameModeData);
-router.post("/player/vehicle", stateWriteLimiter, validate({ query: userQuery, body: updateObjectBody }), updatePlayerVehicleData);
 
 // ========== UTILITIES (Protected) ==========
 router.get("/users", requireAdmin, getAllUsers);
 
-router.use(blockchainRoutes);
 router.use(daRoutes);
 
 module.exports = router;

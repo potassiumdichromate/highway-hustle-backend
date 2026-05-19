@@ -224,6 +224,12 @@ exports.recordPrivyLogin = async (req, res) => {
     applyPrivyMetaData(player, privyMetaData);
     await player.save();
 
+    // SESSION_CONTRACT_ADDRESS — recordSession on 0G EVM (deployer wallet signs).
+    const onchainSession = await safeBlockchainCall(
+      () => recordBlockchainSession(player, "login"),
+      15000,
+    );
+
     const auth = issueBrowserJwt(player, identifier);
 
     res.json({
@@ -232,6 +238,7 @@ exports.recordPrivyLogin = async (req, res) => {
         token: auth.token,
         expiresIn: auth.expiresIn,
         walletAddress: normalizeIdentifier(player?.privyData?.walletAddress) || null,
+        onchainSession: onchainSession || null,
       },
     });
   } catch (err) {
@@ -281,9 +288,17 @@ exports.recordAutoLogin = async (req, res) => {
     
     await player.save();
 
+    const onchainSession = await safeBlockchainCall(
+      () => recordBlockchainSession(player, "auto_login"),
+      15000,
+    );
+
     res.json({
       success: true,
-      data: sanitizePlayerForClient(player)
+      data: {
+        ...sanitizePlayerForClient(player),
+        onchainSession: onchainSession || null,
+      },
     });
   } catch (err) {
     console.error("❌ Error recording auto login:", err);
