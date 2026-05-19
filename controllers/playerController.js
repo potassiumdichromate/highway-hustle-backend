@@ -196,6 +196,25 @@ const safeBlockchainCall = async (fn, timeoutMs = 5000) => {
 };
 
 const recordBlockchainSession = async (playerData, sessionType) => blockchainActions.recordSession(playerData, sessionType);
+
+/** Fire-and-forget SESSION_CONTRACT recordSession — does not block the HTTP response. */
+const queueSessionOnChain = (player, sessionType) => {
+  void safeBlockchainCall(() => recordBlockchainSession(player, sessionType), 300000)
+    .then((result) => {
+      if (result?.success) {
+        console.log(`[onchain] session recorded (${sessionType}) tx=${result.txHash}`);
+        return;
+      }
+      if (result === null) {
+        console.warn(`[onchain] session skipped (${sessionType}): timeout or chain unavailable`);
+        return;
+      }
+      console.warn(`[onchain] session failed (${sessionType}):`, result.error || result);
+    })
+    .catch((err) => {
+      console.warn(`[onchain] session error (${sessionType}):`, err.message);
+    });
+};
 const recordVehicleSwitch = async (playerData, newVehicleIndex) => blockchainActions.recordVehicleSwitch(playerData, newVehicleIndex);
 const recordAchievementUnlock = async (playerData, achievementId) => blockchainActions.recordAchievementUnlock(playerData, achievementId);
 const recordScoreSubmission = async (playerData, gameModeData) => blockchainActions.recordScoreSubmission(playerData, gameModeData);
@@ -224,11 +243,8 @@ exports.recordPrivyLogin = async (req, res) => {
     applyPrivyMetaData(player, privyMetaData);
     await player.save();
 
-    // SESSION_CONTRACT_ADDRESS — recordSession on 0G EVM (deployer wallet signs).
-    const onchainSession = await safeBlockchainCall(
-      () => recordBlockchainSession(player, "login"),
-      15000,
-    );
+    // SESSION_CONTRACT_ADDRESS — async; response is not blocked by tx confirmation.
+    queueSessionOnChain(player, "login");
 
     const auth = issueBrowserJwt(player, identifier);
 
@@ -238,7 +254,6 @@ exports.recordPrivyLogin = async (req, res) => {
         token: auth.token,
         expiresIn: auth.expiresIn,
         walletAddress: normalizeIdentifier(player?.privyData?.walletAddress) || null,
-        onchainSession: onchainSession || null,
       },
     });
   } catch (err) {
@@ -288,17 +303,11 @@ exports.recordAutoLogin = async (req, res) => {
     
     await player.save();
 
-    const onchainSession = await safeBlockchainCall(
-      () => recordBlockchainSession(player, "auto_login"),
-      15000,
-    );
+    queueSessionOnChain(player, "auto_login");
 
     res.json({
       success: true,
-      data: {
-        ...sanitizePlayerForClient(player),
-        onchainSession: onchainSession || null,
-      },
+      data: sanitizePlayerForClient(player),
     });
   } catch (err) {
     console.error("❌ Error recording auto login:", err);
