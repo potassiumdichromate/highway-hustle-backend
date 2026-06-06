@@ -31,6 +31,7 @@ const {
   getStoreAssets,
 } = require("../controllers/campaignController");
 const marketplaceRoutes = require("./marketplaceRoutes");
+const { getRewards } = require("../controllers/rewardController");
 const {
   loginBody,
   autoLoginBody,
@@ -157,6 +158,7 @@ router.post("/player/vehicle", stateWriteLimiter, validate({ query: userQuery, b
 router.post("/leaderboard/comment-ping", aiLimiter, validate({ body: aiCommentPingBody }), createLeaderboardCommentPing);
 router.get("/leaderboard/ai-comment", aiLimiter, getLeaderboardAiComment);
 router.use("/marketplace", marketplaceRoutes);
+router.get("/player/rewards", getRewards);
 
 // ========== BLOCKCHAIN (public — no JWT; ?user= identifies player) ==========
 router.use(blockchainRoutes);
