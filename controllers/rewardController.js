@@ -1,7 +1,8 @@
 const Reward = require("../models/Reward");
 
 // GET /player/rewards?user=0x...
-// Returns all pending rewards for a wallet, and marks them as claimed.
+// Returns all active rewards for a wallet. Rewards are permanent —
+// only an admin changing status to "disabled" in the DB removes them.
 const getRewards = async (req, res) => {
   try {
     const wallet = (req.query.user || "").trim().toLowerCase();
@@ -9,22 +10,14 @@ const getRewards = async (req, res) => {
       return res.status(400).json({ success: false, error: "user query param required" });
     }
 
-    const pending = await Reward.find({ walletAddress: wallet, status: "pending" });
-
-    if (pending.length > 0) {
-      const ids = pending.map(r => r._id);
-      await Reward.updateMany(
-        { _id: { $in: ids } },
-        { $set: { status: "claimed", claimedAt: new Date() } }
-      );
-    }
+    const rewards = await Reward.find({ walletAddress: wallet, status: "active" });
 
     return res.json({
       success: true,
-      rewards: pending.map(r => ({
-        rewardId: r.rewardId,
+      rewards: rewards.map(r => ({
+        rewardId:   r.rewardId,
         rewardType: r.rewardType,
-        note: r.note,
+        note:       r.note,
       })),
     });
   } catch (err) {

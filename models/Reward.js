@@ -4,8 +4,8 @@ const RewardSchema = new mongoose.Schema({
   walletAddress: { type: String, lowercase: true, required: true, index: true },
   rewardType:    { type: String, required: true },   // "vehicle"
   rewardId:      { type: String, required: true },   // "muscle", "f1", etc.
-  status:        { type: String, default: "pending", enum: ["pending", "claimed"] },
-  claimedAt:     { type: Date, default: null },
+  // "active" = always visible in garage. Set to "disabled" from DB to remove it.
+  status:        { type: String, default: "active", enum: ["active", "disabled"] },
   note:          { type: String },
 }, { timestamps: true });
 
