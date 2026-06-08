@@ -31,7 +31,7 @@ const {
   getStoreAssets,
 } = require("../controllers/campaignController");
 const marketplaceRoutes = require("./marketplaceRoutes");
-const { getRewards } = require("../controllers/rewardController");
+const { getRewards, grantReward } = require("../controllers/rewardController");
 const {
   loginBody,
   autoLoginBody,
@@ -71,12 +71,13 @@ const leaderboardLimiter = rateLimit({
 // ========== SIWE AUTH — in-memory nonce store (address → { nonce, expiresAt }) ==========
 const SIWE_NONCE_TTL_MS = 5 * 60 * 1000;
 const siweNonces = new Map();
-setInterval(() => {
+const siweNonceCleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [key, val] of siweNonces) {
     if (val.expiresAt <= now) siweNonces.delete(key);
   }
 }, 60_000);
+siweNonceCleanupTimer.unref?.();
 
 const siweNonceLimiter = rateLimit({ windowMs: 60_000, max: 20, standardHeaders: true, legacyHeaders: false });
 
@@ -159,6 +160,7 @@ router.post("/leaderboard/comment-ping", aiLimiter, validate({ body: aiCommentPi
 router.get("/leaderboard/ai-comment", aiLimiter, getLeaderboardAiComment);
 router.use("/marketplace", marketplaceRoutes);
 router.get("/player/rewards", getRewards);
+router.post("/player/rewards/grant", grantReward);
 
 // ========== BLOCKCHAIN (public — no JWT; ?user= identifies player) ==========
 router.use(blockchainRoutes);
