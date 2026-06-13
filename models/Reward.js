@@ -10,5 +10,6 @@ const RewardSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 RewardSchema.index({ walletAddress: 1, status: 1 });
+RewardSchema.index({ walletAddress: 1, rewardId: 1, rewardType: 1 }, { unique: true });
 
 module.exports = mongoose.model("Reward", RewardSchema);

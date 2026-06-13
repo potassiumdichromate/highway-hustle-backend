@@ -104,37 +104,23 @@ const grantReward = async (req, res) => {
       });
     }
 
-    const existingReward = await Reward.findOne({ walletAddress, rewardId, rewardType });
-    if (existingReward) {
-      if (existingReward.status !== "active") {
-        existingReward.status = "active";
-      }
-      if (!existingReward.note && note) {
-        existingReward.note = note;
-      }
-      await existingReward.save();
+    const identity = { walletAddress, rewardId, rewardType };
+    const updateResult = await Reward.updateOne(
+      identity,
+      {
+        $set: { status: "active", note },
+        $setOnInsert: identity,
+      },
+      { upsert: true }
+    );
+    const reward = await Reward.findOne(identity);
+    const created = updateResult.upsertedCount === 1;
 
-      return res.json({
-        success: true,
-        granted: true,
-        created: false,
-        reward: toRewardPayload(existingReward),
-      });
-    }
-
-    const createdReward = await Reward.create({
-      walletAddress,
-      rewardId,
-      rewardType,
-      note,
-      status: "active",
-    });
-
-    return res.status(201).json({
+    return res.status(created ? 201 : 200).json({
       success: true,
       granted: true,
-      created: true,
-      reward: toRewardPayload(createdReward),
+      created,
+      reward: toRewardPayload(reward),
     });
   } catch (err) {
     return res.status(500).json({
