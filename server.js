@@ -9,6 +9,7 @@ const { getJwtSecret } = require("./middleware/auth");
 const { observeHttpRequest, metricsHandler } = require("./lib/metrics");
 const { responseContractMiddleware } = require("./middleware/responseContract");
 const playerRoutes = require("./routes/playerRoutes");
+const kultPointsRoutes = require("./routes/kultPointsRoutes");
 
 const app = express();
 
@@ -95,6 +96,7 @@ app.use((req, res, next) => {
 
 // ========== ROUTES ==========
 app.use("/api", playerRoutes);
+app.use("/api/kult-points", kultPointsRoutes);
 
 // ========== HEALTH CHECK ==========
 app.get("/health", (req, res) => {
