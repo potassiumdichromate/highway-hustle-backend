@@ -1,0 +1,32 @@
+const { getCrossGameProgress, getLocalCrossGame } = require("../services/crossGameService");
+
+function walletFrom(req) {
+  return req.query.walletAddress || req.query.wallet || req.query.user || req.query.address;
+}
+
+function sendError(res, err) {
+  return res.status(err.statusCode || 502).json({
+    success: false,
+    error: err.message || "Cross-game request failed",
+  });
+}
+
+async function getLocal(req, res) {
+  try {
+    const data = await getLocalCrossGame(walletFrom(req));
+    return res.json({ success: true, data });
+  } catch (err) {
+    return sendError(res, err);
+  }
+}
+
+async function getProgress(req, res) {
+  try {
+    const data = await getCrossGameProgress(walletFrom(req));
+    return res.json({ success: true, data });
+  } catch (err) {
+    return sendError(res, err);
+  }
+}
+
+module.exports = { getLocal, getProgress };

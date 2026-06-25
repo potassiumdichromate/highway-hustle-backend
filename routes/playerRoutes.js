@@ -32,6 +32,7 @@ const {
 } = require("../controllers/campaignController");
 const marketplaceRoutes = require("./marketplaceRoutes");
 const { getRewards, grantReward } = require("../controllers/rewardController");
+const { getLocal: getCrossGameLocal, getProgress: getCrossGameProgress } = require("../controllers/crossGameController");
 const {
   loginBody,
   autoLoginBody,
@@ -143,6 +144,8 @@ router.post("/player/auth/siwe-login", authLimiter, async (req, res, next) => {
 router.post("/player/login", authLimiter, validate({ body: loginBody }), recordPrivyLogin);
 router.post("/player/login/auto", authLimiter, validate({ body: autoLoginBody }), recordAutoLogin);
 // ========== UTILITIES (Public) ==========
+router.get("/cross-game/local", getCrossGameLocal);
+router.get("/cross-game/progress", getCrossGameProgress);
 router.get("/leaderboard", leaderboardLimiter, getLeaderboard);
 router.get("/leaderboard/gate-wallet", leaderboardLimiter, getGateWalletLeaderboard);
 router.get("/store/assets", getStoreAssets);

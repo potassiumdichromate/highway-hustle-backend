@@ -10,6 +10,16 @@ const { generateLeaderboardComment } = require("../services/aiCommentService");
 const zerogDAService = require("../services/zerogDAService");
 const jwt = require("jsonwebtoken");
 const { getJwtSecret } = require("../middleware/auth");
+const { classifyCrossGamePerformance } = require("../utils/crossGameDifficulty");
+
+const buildHighwayHustleCrossGame = (points) => (
+  classifyCrossGamePerformance('highwayHustle', points)
+);
+
+const withHighwayHustleCrossGame = (userGameData) => ({
+  ...(userGameData?.toObject ? userGameData.toObject() : userGameData),
+  crossGame: buildHighwayHustleCrossGame(userGameData?.currency),
+});
 
 // ========== HELPER: Find User by Any Privy Field ==========
 const findUserByIdentifier = async (identifier) => {
@@ -162,6 +172,9 @@ const applyPrivyMetaData = (player, meta = {}) => {
 const sanitizePlayerForClient = (player) => {
   if (!player) return null;
   const sanitized = player.toObject ? player.toObject() : { ...player };
+  if (sanitized.userGameData) {
+    sanitized.userGameData = withHighwayHustleCrossGame(sanitized.userGameData);
+  }
   return sanitized;
 };
 
@@ -404,7 +417,7 @@ exports.getUserGameData = async (req, res) => {
 
     res.json({
       success: true,
-      data: player.userGameData
+      data: withHighwayHustleCrossGame(player.userGameData)
     });
   } catch (err) {
     console.error("❌ Error getting user game data:", err);
@@ -636,7 +649,7 @@ exports.updateUserGameData = async (req, res) => {
 
     res.json({
       success: true,
-      data: player.userGameData,
+      data: withHighwayHustleCrossGame(player.userGameData),
       ...(blockchainResult !== null && { blockchain: blockchainResult })
     });
   } catch (err) {
