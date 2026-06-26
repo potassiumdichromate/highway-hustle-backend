@@ -1,5 +1,6 @@
 const PlayerState = require("../models/PlayerState");
 const { classifyCrossGamePerformance } = require("../utils/crossGameDifficulty");
+const { grantWarzoneGunReward } = require("./warzoneGunRewardClient");
 
 const CROSS_GAME_BACKENDS = Object.freeze({
   zeroDash: "https://zerodashbackend.onrender.com",
@@ -43,6 +44,17 @@ async function getLocalCrossGame(walletAddress) {
     .select("privyData.walletAddress userGameData.currency")
     .lean();
   const points = Number(player?.userGameData?.currency || 0);
+  const crossGame = classifyCrossGamePerformance("highwayHustle", points);
+  let rewardSync = null;
+  try {
+    rewardSync = await grantWarzoneGunReward({
+      walletAddress: wallet,
+      sourceGame: "highwayHustle",
+      crossGame,
+    });
+  } catch (error) {
+    rewardSync = { eligible: true, granted: false, error: error?.message || "Warzone reward sync failed" };
+  }
 
   return {
     gameKey: "highwayHustle",
@@ -50,7 +62,13 @@ async function getLocalCrossGame(walletAddress) {
     walletAddress: wallet,
     available: Boolean(player),
     metrics: { points },
-    crossGame: classifyCrossGamePerformance("highwayHustle", points),
+    crossGame,
+    reward: {
+      type: "warzone_gun",
+      name: "Bullpup",
+      unlocksAt: "medium",
+      sync: rewardSync,
+    },
   };
 }
 
