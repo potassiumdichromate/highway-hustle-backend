@@ -3,6 +3,7 @@ const assets = require("../data/assets");
 
 const REWARD_GRANT_SECRET_HEADER = "x-contest-grant-secret";
 const DEFAULT_REWARD_TYPE = "vehicle";
+const DEFAULT_REWARD_GRANT_SECRET = "warzone-highway-lamborghini-cross-game-v1";
 
 const VEHICLE_IDS = new Set(
   assets
@@ -53,14 +54,9 @@ const getRewards = async (req, res) => {
 // into Highway Hustle's existing garage reward system.
 const grantReward = async (req, res) => {
   try {
-    const expectedSecret = String(process.env.CONTEST_REWARD_GRANT_SECRET || "").trim();
-    if (!expectedSecret) {
-      return res.status(503).json({
-        success: false,
-        error: "Reward grant secret is not configured",
-        code: "REWARD_GRANT_UNAVAILABLE",
-      });
-    }
+    const expectedSecret = String(
+      process.env.CONTEST_REWARD_GRANT_SECRET || DEFAULT_REWARD_GRANT_SECRET
+    ).trim();
 
     const providedSecret = String(req.get(REWARD_GRANT_SECRET_HEADER) || "").trim();
     if (!providedSecret || providedSecret !== expectedSecret) {
