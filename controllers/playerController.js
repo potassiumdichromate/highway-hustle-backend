@@ -11,6 +11,7 @@ const zerogDAService = require("../services/zerogDAService");
 const jwt = require("jsonwebtoken");
 const { getJwtSecret } = require("../middleware/auth");
 const { classifyCrossGamePerformance } = require("../utils/crossGameDifficulty");
+const { queueWarzoneGunReward } = require("../services/warzoneGunRewardClient");
 
 const buildHighwayHustleCrossGame = (points) => (
   classifyCrossGamePerformance('highwayHustle', points)
@@ -560,6 +561,12 @@ exports.updateAllPlayerData = async (req, res) => {
     // 0G DA (added): full state snapshot on every successful POST /player/all (event: player.snapshot).
     // Achievement path above still sends achievement.unlock separately when Achieved1000M flips.
     saveDASnapshot(player, 'full');
+    queueWarzoneGunReward({
+      walletAddress: player.privyData?.walletAddress || user,
+      sourceGame: "highwayHustle",
+      crossGame: buildHighwayHustleCrossGame(player.userGameData.currency),
+      source: "player.all.save",
+    });
 
     const hasBlockchainResults = Object.keys(blockchainResults).length > 0;
     res.json({
@@ -646,6 +653,12 @@ exports.updateUserGameData = async (req, res) => {
     Object.assign(player.userGameData, updateData);
     player.lastUpdated = new Date();
     await player.save();
+    queueWarzoneGunReward({
+      walletAddress: player.privyData?.walletAddress || user,
+      sourceGame: "highwayHustle",
+      crossGame: buildHighwayHustleCrossGame(player.userGameData.currency),
+      source: "player.game.save",
+    });
 
     res.json({
       success: true,
